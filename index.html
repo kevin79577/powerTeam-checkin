@@ -1045,74 +1045,111 @@
       shareBtn.disabled = true;
       shareBtn.innerHTML = '<span>⏳</span> <span>連線 LINE 服務中...</span>';
 
-      // 1. 等待 LIFF 就緒
       try {
-        await getLiffReady();
-      } catch (err) {}
-
-      var isLiffReady = typeof liff !== 'undefined' && !!window._liffInitialized;
-      var isInClient = typeof liff !== 'undefined' && typeof liff.isInClient === 'function' && liff.isInClient();
-      var isLoggedIn = typeof liff !== 'undefined' && typeof liff.isLoggedIn === 'function' && liff.isLoggedIn();
-      var isShareAvail = typeof liff !== 'undefined' && typeof liff.isApiAvailable === 'function' && liff.isApiAvailable('shareTargetPicker');
-
-      // 2. 若在外部瀏覽器且尚未登入 LINE，引導使用者登入以啟用 shareTargetPicker
-      if (!isInClient && !isLoggedIn && typeof liff !== 'undefined' && typeof liff.login === 'function') {
-        shareBtn.innerHTML = '<span>🔐</span> <span>引導 LINE 登入中...</span>';
-        liff.login();
-        return;
-      }
-
-      // 3. 官方 shareTargetPicker 可用：直接彈出群組選擇並代發 Flex 戰績卡片
-      if (isShareAvail && pendingFlexMessage) {
-        shareBtn.innerHTML = '<span>📲</span> <span>開啟群組選擇中...</span>';
+        // 1. 等待 LIFF 就緒
         try {
-          var res = await liff.shareTargetPicker([pendingFlexMessage]);
-          if (res) {
-            shareBtn.innerHTML = '<span>✓</span> <span>已成功發送至群組！</span>';
-            shareBtn.className = 'w-full py-3 bg-emerald-600 text-white text-sm font-bold rounded-2xl shadow transition flex items-center justify-center gap-1.5';
-            setTimeout(function() { closeCustomModal(); }, 1500);
-            return;
-          } else {
-            // 使用者在 LINE 群組清單中按了取消或返回
+          await getLiffReady();
+        } catch (err) {
+          console.warn('getLiffReady error:', err);
+        }
+
+        var isLiffReady = typeof liff !== 'undefined' && !!window._liffInitialized;
+        var isInClient = false;
+        var isLoggedIn = false;
+        var isShareAvail = false;
+
+        try {
+          isInClient = typeof liff !== 'undefined' && typeof liff.isInClient === 'function' && liff.isInClient();
+        } catch (e) { console.warn('isInClient err:', e); }
+
+        try {
+          isLoggedIn = typeof liff !== 'undefined' && typeof liff.isLoggedIn === 'function' && liff.isLoggedIn();
+        } catch (e) { console.warn('isLoggedIn err:', e); }
+
+        try {
+          isShareAvail = typeof liff !== 'undefined' && typeof liff.isApiAvailable === 'function' && liff.isApiAvailable('shareTargetPicker');
+        } catch (e) { console.warn('isShareAvail err:', e); }
+
+        // 2. 若在外部瀏覽器且尚未登入 LINE，引導使用者登入以啟用 shareTargetPicker
+        if (!isInClient && !isLoggedIn && typeof liff !== 'undefined' && typeof liff.login === 'function') {
+          shareBtn.innerHTML = '<span>🔐</span> <span>引導 LINE 登入中...</span>';
+          try {
+            liff.login();
+          } catch(err) {
+            console.error('liff.login error:', err);
             shareBtn.disabled = false;
             shareBtn.innerHTML = '<span>📤</span> <span>分享戰績卡片至群組</span>';
-            return;
+            executeLineNativeShare(shareBtn);
           }
-        } catch (err) {
-          console.error('[shareTargetPicker Error]', err);
-          showCustomAlert(
-            '卡片發送未完成',
-            'LINE 回傳錯誤：' + (err.message || String(err)) + '\n\n即將為您開啟備援發送',
-            '⚠️',
-            'error',
-            function() { executeLineNativeShare(shareBtn); },
-            2500
-          );
           return;
         }
-      }
 
-      // 4. 若當前環境未通過 shareTargetPicker 檢測，明確提示原因並啟動備援
-      var failReason = '';
-      if (!isLiffReady) {
-        failReason = 'LIFF 未能成功連線 (' + (window._liffInitError || '逾時') + ')';
-      } else if (!isLoggedIn) {
-        failReason = '尚未完成 LINE 登入';
-      } else if (!pendingFlexMessage) {
-        failReason = '戰績卡片資料讀取異常';
-      } else {
-        failReason = '當前環境或 LINE 版本未支援 shareTargetPicker';
-      }
-
-      showCustomAlert(
-        '提示：切換至備援發送',
-        '【原因】：' + failReason + '\n\n【排查】：建議直接在手機 LINE 內點開 LIFF 連結開啟。\n\n點擊「確定」將為您複製戰報並開啟 LINE 群組！',
-        'ℹ️',
-        'info',
-        function() {
-          executeLineNativeShare(shareBtn);
+        // 3. 準備發送的 Flex 訊息物件
+        var msgToSend = pendingFlexMessage;
+        if (typeof msgToSend === 'string') {
+          try { msgToSend = JSON.parse(msgToSend); } catch(e) {}
         }
-      );
+
+        // 4. 優先嘗試官方 shareTargetPicker（直接彈出群組選擇並代發 Flex 戰績卡片）
+        if (typeof liff !== 'undefined' && typeof liff.shareTargetPicker === 'function' && msgToSend) {
+          shareBtn.innerHTML = '<span>📲</span> <span>開啟群組選擇中...</span>';
+          try {
+            var res = await liff.shareTargetPicker([msgToSend]);
+            if (res) {
+              shareBtn.innerHTML = '<span>✓</span> <span>已成功發送至群組！</span>';
+              shareBtn.className = 'w-full py-3 bg-emerald-600 text-white text-sm font-bold rounded-2xl shadow transition flex items-center justify-center gap-1.5';
+              setTimeout(function() { closeCustomModal(); }, 1500);
+              return;
+            } else {
+              // 使用者在 LINE 群組清單中按了取消或返回
+              shareBtn.disabled = false;
+              shareBtn.innerHTML = '<span>📤</span> <span>分享戰績卡片至群組</span>';
+              return;
+            }
+          } catch (err) {
+            console.error('[shareTargetPicker Error]', err);
+            var errMsg = (err && (err.message || err.code)) ? (err.message || err.code) : String(err);
+            var hint = '請至 LINE Developers Console 確認：\n1. 【Share Target Picker】是否已切換為 ON\n2. 權限是否有勾選 chat_message.write\n\n點擊「確定」將改以備援方式為您複製戰報並開啟 LINE 群組！';
+            
+            showCustomAlert(
+              '群組分享尚未開啟',
+              'LINE 回報：' + errMsg + '\n\n' + hint,
+              '⚠️',
+              'error',
+              function() { executeLineNativeShare(shareBtn); }
+            );
+            return;
+          }
+        }
+
+        // 5. 若無法執行 shareTargetPicker，詳細診斷原因並提供備援
+        var failReason = '';
+        if (!isLiffReady) {
+          failReason = 'LIFF 未能成功連線 (' + (window._liffInitError || '初始化逾時') + ')\n💡 請確認 LINE Developers Console 的 Endpoint URL 是否填為：\nhttps://kevin79577.github.io/powerTeam-checkin/';
+        } else if (!isLoggedIn) {
+          failReason = '尚未完成 LINE 登入';
+        } else if (!msgToSend) {
+          failReason = '戰績卡片資料讀取異常';
+        } else {
+          failReason = '當前 LIFF 尚未啟用 Share Target Picker 功能\n💡 請至 LINE Developers Console 將【Share Target Picker】設為 ON！';
+        }
+
+        showCustomAlert(
+          '提示：切換至備援發送',
+          failReason + '\n\n點擊「確定」將為您複製戰報並開啟 LINE 群組！',
+          'ℹ️',
+          'info',
+          function() {
+            executeLineNativeShare(shareBtn);
+          }
+        );
+
+      } catch (fatalErr) {
+        console.error('[handleShareCardClick Fatal]', fatalErr);
+        shareBtn.disabled = false;
+        shareBtn.innerHTML = '<span>📤</span> <span>分享戰績卡片至群組</span>';
+        executeLineNativeShare(shareBtn);
+      }
     }
     window.handleShareCardClick = handleShareCardClick;
 
@@ -1195,9 +1232,6 @@
     function bindUIEvents() {
       // 自訂提示彈窗關閉按鈕
       document.getElementById('btnCustomModalClose')?.addEventListener('click', closeCustomModal);
-
-      // 分享按鈕以 addEventListener 雙重保險綁定
-      document.getElementById('btnCustomModalShare')?.addEventListener('click', window.handleShareCardClick);
 
       // 計數器
       document.querySelectorAll('.btn-step').forEach(btn => {
