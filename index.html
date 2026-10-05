@@ -1,0 +1,1919 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Power Team 每日行動打卡</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- LINE LIFF SDK -->
+  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    * { -webkit-tap-highlight-color: transparent; user-select: none; }
+    input, textarea, select { user-select: text; }
+    button:active { transform: scale(0.96); transition: transform 0.08s ease-in-out; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans pb-28">
+
+  <!-- 頂部導航 -->
+  <header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4 sticky top-0 z-30 shadow-md">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-lg font-bold flex items-center gap-1.5">
+          <span id="headerIcon">🔥</span>
+          <span id="headerText">Power Team 行動打卡</span>
+        </h1>
+        <p id="userStatusText" class="text-xs text-blue-100 mt-0.5">載入身分中...</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btnNavToLeaderboard" class="text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-full border border-white/30 transition flex items-center gap-1 font-medium">
+          <span>🏆</span> 團隊戰報
+        </button>
+        <button id="btnNavToCheckin" class="hidden text-xs bg-white/20 hover:bg-white/30 px-2.5 py-1.5 rounded-full border border-white/30 transition flex items-center gap-1 font-semibold">
+          <span>📝</span> 每日打卡
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 次級頁籤切換 (拆開為選單獨立入口後，預設隱藏此欄位以釋放手機垂直視野) -->
+  <nav id="tabNav" class="hidden sticky top-[68px] z-30 bg-white/95 backdrop-blur border-b border-slate-200/80 px-4 py-2 shadow-xs">
+    <div class="max-w-md mx-auto flex items-center p-1 bg-slate-100 rounded-2xl gap-1">
+      <button id="tabBtnCheckin" type="button" class="flex-1 py-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 bg-white text-blue-600 shadow-sm">
+        <span>📝</span> 每日打卡
+      </button>
+      <button id="tabBtnLeaderboard" type="button" class="flex-1 py-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 text-slate-500 hover:text-slate-800">
+        <span>🏆</span> 團隊戰報
+      </button>
+    </div>
+  </nav>
+
+  <!-- 主內容容器 (打卡視圖) -->
+  <main id="viewCheckin" class="max-w-md mx-auto p-4 space-y-4">
+
+    <!-- 日期選擇與補打卡警告 -->
+    <section class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80">
+      <div class="flex items-center justify-between">
+        <label for="checkinDate" class="text-sm font-semibold text-slate-700">打卡日期</label>
+        <input type="date" id="checkinDate" class="text-sm border border-slate-300 rounded-lg px-2.5 py-1.5 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div id="lateBadge" class="hidden mt-2.5 p-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs flex items-center gap-2">
+        <span class="text-base">⏳</span>
+        <span>您正在進行<strong>【補打卡】</strong>，系統將自動加註標籤並於 23:00 前完成統計。</span>
+      </div>
+    </section>
+
+    <!-- 區塊 1: 【拓展人脈】 -->
+    <section class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 space-y-3">
+      <div class="flex items-center gap-2 border-b border-slate-100 pb-2">
+        <span class="text-emerald-600 font-bold">01</span>
+        <h2 class="text-sm font-bold text-slate-800">【拓展人脈】</h2>
+      </div>
+
+      <!-- ⭐ 新增名單(目標10名單) -->
+      <div class="space-y-2 bg-amber-50/50 p-3 rounded-xl border border-amber-200/60">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-sm font-bold text-amber-900 flex items-center gap-1">
+              <span>⭐</span> 新增名單
+            </div>
+            <div class="text-xs text-amber-700">週目標 10 位名單</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <!-- 今日計數器 -->
+            <div class="flex items-center bg-white rounded-lg p-0.5 border border-slate-200 shadow-2xs">
+              <button type="button" class="btn-step w-7 h-7 rounded bg-slate-50 text-slate-700 font-bold hover:bg-slate-100" data-target="newListCount" data-delta="-1">-</button>
+              <span id="txt_newListCount" class="w-7 text-center font-black text-sm text-slate-800">0</span>
+              <button type="button" class="btn-step w-7 h-7 rounded bg-amber-500 text-white font-bold hover:bg-amber-600" data-target="newListCount" data-delta="1">+</button>
+            </div>
+            <!-- 特別標記每週總數 (週X) -->
+            <div class="flex items-center bg-amber-100 border border-amber-300 rounded-lg px-2 py-0.5 shadow-2xs">
+              <span class="text-xs font-black text-amber-950">週<span id="week_newListCount">0</span></span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <input type="text" id="input_newListNames" placeholder="輸入新增名單人名，例如：尾玟、良才、小雷" class="w-full text-xs p-2.5 bg-white border border-amber-200/80 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-none">
+        </div>
+      </div>
+    </section>
+
+    <!-- 區塊 2: 【關係經營】 -->
+    <section class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 space-y-3">
+      <div class="flex items-center gap-2 border-b border-slate-100 pb-2">
+        <span class="text-purple-600 font-bold">02</span>
+        <h2 class="text-sm font-bold text-slate-800">【關係經營】</h2>
+      </div>
+
+      <!-- • 潛在人選 -->
+      <div class="space-y-1.5 py-1">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-sm font-medium text-slate-700">• 潛在人選</div>
+            <div class="text-xs text-slate-400">建立交集、關心 (週目標 15 位)</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="flex items-center bg-slate-50 rounded-lg p-0.5 border border-slate-200 shadow-2xs">
+              <button type="button" class="btn-step w-7 h-7 rounded bg-white text-slate-700 font-bold hover:bg-slate-100" data-target="trustBuilding" data-delta="-1">-</button>
+              <span id="txt_trustBuilding" class="w-7 text-center font-bold text-sm text-slate-800">0</span>
+              <button type="button" class="btn-step w-7 h-7 rounded bg-purple-50 text-purple-600 font-bold hover:bg-purple-100" data-target="trustBuilding" data-delta="1">+</button>
+            </div>
+            <!-- 特別標記每週總數 (週X) -->
+            <div class="flex items-center bg-purple-100 border border-purple-300 rounded-lg px-2 py-0.5 shadow-2xs">
+              <span class="text-xs font-black text-purple-950">週<span id="week_trustBuilding">0</span></span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <input type="text" id="input_trustBuildingNames" placeholder="輸入潛在人選姓名，例如：小美、陳經理" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-purple-500 focus:outline-none">
+        </div>
+      </div>
+
+      <!-- • 顧客 -->
+      <div class="space-y-1.5 py-1 border-t border-slate-50">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-sm font-medium text-slate-700">• 顧客</div>
+            <div class="text-xs text-slate-400">售後關心、產品諮詢 (週目標 5 位)</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="flex items-center bg-slate-50 rounded-lg p-0.5 border border-slate-200 shadow-2xs">
+              <button type="button" class="btn-step w-7 h-7 rounded bg-white text-slate-700 font-bold hover:bg-slate-100" data-target="followUp" data-delta="-1">-</button>
+              <span id="txt_followUp" class="w-7 text-center font-bold text-sm text-slate-800">0</span>
+              <button type="button" class="btn-step w-7 h-7 rounded bg-purple-50 text-purple-600 font-bold hover:bg-purple-100" data-target="followUp" data-delta="1">+</button>
+            </div>
+            <!-- 特別標記每週總數 (週X) -->
+            <div class="flex items-center bg-purple-100 border border-purple-300 rounded-lg px-2 py-0.5 shadow-2xs">
+              <span class="text-xs font-black text-purple-950">週<span id="week_followUp">0</span></span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <input type="text" id="input_followUpNames" placeholder="輸入顧客姓名，例如：關心尾玟保養品、跟進Perry" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-purple-500 focus:outline-none">
+        </div>
+      </div>
+
+      <!-- ⭐ 排約(4次，2次美安相關行動) -->
+      <div class="pt-2 border-t border-slate-100 bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/40 flex items-center justify-between">
+        <div>
+          <div class="text-sm font-bold text-amber-900 flex items-center gap-1">
+            <span>⭐</span> 排約
+          </div>
+          <div class="text-xs text-amber-700">週目標 4 次（含 2 次美安相關）</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="flex items-center bg-white rounded-lg p-0.5 border border-slate-200 shadow-2xs">
+            <button type="button" class="btn-step w-7 h-7 rounded bg-slate-50 text-slate-700 font-bold shadow-xs" data-target="meetingScheduled" data-delta="-1">-</button>
+            <span id="txt_meetingScheduled" class="w-7 text-center font-black text-sm text-amber-900">0</span>
+            <button type="button" class="btn-step w-7 h-7 rounded bg-amber-500 text-white font-bold shadow-xs active:bg-amber-600" data-target="meetingScheduled" data-delta="1">+</button>
+          </div>
+          <!-- 特別標記每週總數 (週X) -->
+          <div class="flex items-center bg-amber-100 border border-amber-300 rounded-lg px-2 py-0.5 shadow-2xs">
+            <span class="text-xs font-black text-amber-950">週<span id="week_meetingScheduled">0</span></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 區塊 3: 【會面】 (標題直接標註週目標與週累積) -->
+    <section class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 space-y-3">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span class="text-blue-600 font-bold">03</span>
+          <h2 class="text-sm font-bold text-slate-800">【會面】</h2>
+          <span class="text-[11px] text-slate-500 font-normal">週目標4次(含2次美安相關)</span>
+        </div>
+        <!-- 特別標記的週累積 (週X) -->
+        <div class="flex items-center bg-amber-100 border border-amber-300 rounded-lg px-2 py-0.5 shadow-2xs">
+          <span class="text-xs font-black text-amber-950">週<span id="week_meetingTotal">0</span></span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <!-- • 一訪 -->
+        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-700">• 一訪</span>
+            <div class="flex items-center bg-blue-100 border border-blue-200 rounded px-1.5 py-0.5 text-[10px]">
+              <span class="font-black text-blue-900">週<span id="week_meetingFirst">0</span></span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between mt-2 bg-white rounded-lg p-0.5 border border-slate-200">
+            <button type="button" class="btn-step w-6 h-6 bg-slate-50 rounded text-xs font-bold" data-target="meetingFirst" data-delta="-1">-</button>
+            <span id="txt_meetingFirst" class="font-bold text-xs text-slate-800">0</span>
+            <button type="button" class="btn-step w-6 h-6 bg-blue-600 text-white rounded text-xs font-bold" data-target="meetingFirst" data-delta="1">+</button>
+          </div>
+        </div>
+
+        <!-- • 美安面 -->
+        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-700">• 美安面</span>
+            <div class="flex items-center bg-blue-100 border border-blue-200 rounded px-1.5 py-0.5 text-[10px]">
+              <span class="font-black text-blue-900">週<span id="week_meetingMa">0</span></span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between mt-2 bg-white rounded-lg p-0.5 border border-slate-200">
+            <button type="button" class="btn-step w-6 h-6 bg-slate-50 rounded text-xs font-bold" data-target="meetingMa" data-delta="-1">-</button>
+            <span id="txt_meetingMa" class="font-bold text-xs text-slate-800">0</span>
+            <button type="button" class="btn-step w-6 h-6 bg-blue-600 text-white rounded text-xs font-bold" data-target="meetingMa" data-delta="1">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label for="input_meetingNotes" class="block text-xs text-slate-500 mb-1">會面細節 / 備註 (選填)</label>
+        <input type="text" id="input_meetingNotes" placeholder="例如：1場一面、1場營養諮詢、Perry締結" class="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-none">
+      </div>
+    </section>
+
+    <!-- 區塊 4: 【美安業績】 -->
+    <section class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 space-y-3">
+      <div class="flex items-center gap-2 border-b border-slate-100 pb-2">
+        <span class="text-rose-600 font-bold">04</span>
+        <h2 class="text-sm font-bold text-slate-800">【美安業績】</h2>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2.5">
+        <!-- ⭐ 新增顧客 -->
+        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-700">⭐ 新增顧客</span>
+            <div class="flex items-center bg-rose-100 border border-rose-200 rounded px-1.5 py-0.5 text-[10px]">
+              <span class="font-black text-rose-900">週<span id="week_newCustomer">0</span></span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between mt-2 bg-white rounded-lg p-0.5 border border-slate-200">
+            <button type="button" class="btn-step w-6 h-6 bg-slate-50 rounded text-xs font-bold" data-target="newCustomer" data-delta="-1">-</button>
+            <span id="txt_newCustomer" class="w-5 text-center text-xs font-bold text-rose-700">0</span>
+            <button type="button" class="btn-step w-6 h-6 bg-rose-500 text-white rounded text-xs font-bold" data-target="newCustomer" data-delta="1">+</button>
+          </div>
+        </div>
+
+        <!-- ⭐ 顧客回購 -->
+        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-700">⭐ 顧客回購</span>
+            <div class="flex items-center bg-rose-100 border border-rose-200 rounded px-1.5 py-0.5 text-[10px]">
+              <span class="font-black text-rose-900">週<span id="week_repeatCustomer">0</span></span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between mt-2 bg-white rounded-lg p-0.5 border border-slate-200">
+            <button type="button" class="btn-step w-6 h-6 bg-slate-50 rounded text-xs font-bold" data-target="repeatCustomer" data-delta="-1">-</button>
+            <span id="txt_repeatCustomer" class="w-5 text-center text-xs font-bold text-rose-700">0</span>
+            <button type="button" class="btn-step w-6 h-6 bg-rose-500 text-white rounded text-xs font-bold" data-target="repeatCustomer" data-delta="1">+</button>
+          </div>
+        </div>
+
+        <!-- ⭐ 賣票 -->
+        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-700">⭐ 賣票張數</span>
+            <div class="flex items-center bg-rose-100 border border-rose-200 rounded px-1.5 py-0.5 text-[10px]">
+              <span class="font-black text-rose-900">週<span id="week_tickets">0</span></span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between mt-2 bg-white rounded-lg p-0.5 border border-slate-200">
+            <button type="button" class="btn-step w-6 h-6 bg-slate-50 rounded text-xs font-bold" data-target="tickets" data-delta="-1">-</button>
+            <span id="txt_tickets" class="w-5 text-center text-xs font-bold text-rose-700">0</span>
+            <button type="button" class="btn-step w-6 h-6 bg-rose-500 text-white rounded text-xs font-bold" data-target="tickets" data-delta="1">+</button>
+          </div>
+        </div>
+
+        <!-- ⭐ 展示計劃 (SHOW) -->
+        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold text-slate-700">⭐ 展示計劃</span>
+            <div class="flex items-center bg-rose-100 border border-rose-200 rounded px-1.5 py-0.5 text-[10px]">
+              <span class="font-black text-rose-900">週<span id="week_meetingShow">0</span></span>
+            </div>
+          </div>
+          <div class="flex items-center justify-between mt-2 bg-white rounded-lg p-0.5 border border-slate-200">
+            <button type="button" class="btn-step w-6 h-6 bg-slate-50 rounded text-xs font-bold" data-target="meetingShow" data-delta="-1">-</button>
+            <span id="txt_meetingShow" class="w-5 text-center text-xs font-bold text-rose-700">0</span>
+            <button type="button" class="btn-step w-6 h-6 bg-rose-500 text-white rounded text-xs font-bold" data-target="meetingShow" data-delta="1">+</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⭐ 零售利潤 -->
+      <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
+        <div>
+          <label for="input_retailProfit" class="text-sm font-bold text-slate-800 flex items-center gap-1">
+            <span>⭐</span> 零售利潤
+          </label>
+          <div class="text-[11px] text-slate-400">產品零售現金利潤</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="flex items-center gap-1">
+            <span class="text-xs text-slate-500 font-bold">$</span>
+            <input type="number" id="input_retailProfit" value="0" min="0" step="100" class="w-20 text-right text-xs font-bold p-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:outline-none">
+          </div>
+          <!-- 特別標記每週總數 (週X) -->
+          <div class="flex items-center bg-rose-100 border border-rose-300 rounded-lg px-2 py-0.5 shadow-2xs">
+            <span id="week_cashProfit" class="text-xs font-black text-rose-950">週$0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⭐ BV 輸入 -->
+      <div class="pt-2 border-t border-slate-100 flex items-center justify-between">
+        <div>
+          <label for="input_bv" class="text-sm font-bold text-slate-800 flex items-center gap-1">
+            <span>⭐</span> 產生 BV 業績
+          </label>
+          <div class="text-[11px] text-slate-400">家用或夥伴業績點數</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="flex items-center gap-1">
+            <input type="number" id="input_bv" value="0" min="0" step="10" class="w-20 text-right text-xs font-bold p-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-rose-500 focus:outline-none">
+            <span class="text-xs text-slate-500 font-bold">BV</span>
+          </div>
+          <!-- 特別標記每週總數 (週X) -->
+          <div class="flex items-center bg-rose-100 border border-rose-300 rounded-lg px-2 py-0.5 shadow-2xs">
+            <span id="week_bv" class="text-xs font-black text-rose-950">週0BV</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 團隊戰報 視圖容器 -->
+  <main id="viewLeaderboard" class="hidden max-w-md mx-auto p-4 space-y-4 pb-20">
+
+    <!-- 篩選列 -->
+    <section class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200/80 space-y-2.5">
+      <!-- 隊伍維度 -->
+      <div>
+        <div class="text-[11px] font-bold text-slate-400 mb-1.5 flex items-center justify-between">
+          <span>隊伍組別</span>
+          <button id="btnRefreshLeaderboard" type="button" class="text-blue-600 hover:text-blue-700 flex items-center gap-1 text-[11px] font-bold active:scale-95 transition">
+            <span id="refreshIcon">🔄</span> 重新整理
+          </button>
+        </div>
+        <div class="grid grid-cols-4 gap-1.5" id="groupFilterButtons">
+          <button type="button" data-group="all" class="btn-group-filter py-1.5 text-xs font-bold rounded-xl bg-blue-600 text-white shadow-xs transition">全部</button>
+          <button type="button" data-group="1" class="btn-group-filter py-1.5 text-xs font-bold rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition">第 1 組</button>
+          <button type="button" data-group="2" class="btn-group-filter py-1.5 text-xs font-bold rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition">第 2 組</button>
+          <button type="button" data-group="3" class="btn-group-filter py-1.5 text-xs font-bold rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition">第 3 組</button>
+        </div>
+      </div>
+
+      <!-- 時間維度 -->
+      <div class="pt-2 border-t border-slate-100">
+        <div class="text-[11px] font-bold text-slate-400 mb-1.5">時間週期</div>
+        <div class="grid grid-cols-3 gap-1.5" id="periodFilterButtons">
+          <button type="button" data-period="week" class="btn-period-filter py-1.5 text-xs font-bold rounded-xl bg-indigo-600 text-white shadow-xs transition">本週 (Live)</button>
+          <button type="button" data-period="month" class="btn-period-filter py-1.5 text-xs font-bold rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition">本月</button>
+          <button type="button" data-period="quarter" class="btn-period-filter py-1.5 text-xs font-bold rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition">2026.Q4</button>
+        </div>
+
+        <!-- 歷史週別下拉 -->
+        <div id="boxHistoryWeeks" class="mt-2 flex items-center gap-2">
+          <span class="text-[11px] text-slate-500 font-medium whitespace-nowrap">歷史週別：</span>
+          <select id="selectHistoryWeek" class="w-full text-xs p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
+            <option value="current">-- 本週進行中 (即時累加) --</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- 團隊總覽 KPI 看板 -->
+    <section class="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-4 rounded-3xl shadow-lg relative overflow-hidden">
+      <div class="absolute -right-6 -bottom-6 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl"></div>
+      <div class="flex items-center justify-between border-b border-white/10 pb-2.5">
+        <div>
+          <span id="txtBoardPeriodLabel" class="text-xs font-bold text-blue-300">本週戰報</span>
+          <h2 id="txtBoardGroupTitle" class="text-base font-extrabold mt-0.5">全體隊伍戰力儀表板</h2>
+        </div>
+        <span id="txtBoardCheckinRate" class="text-xs px-2.5 py-1 bg-white/10 text-emerald-300 rounded-full font-bold border border-white/10">打卡率 0%</span>
+      </div>
+
+      <div class="grid grid-cols-3 gap-2 mt-3 text-center">
+        <div class="bg-white/5 p-2 rounded-2xl border border-white/5">
+          <div class="text-[11px] text-slate-300">總 BV 業績</div>
+          <div id="txtBoardTotalBv" class="text-lg font-black text-rose-400 mt-0.5">0</div>
+        </div>
+        <div class="bg-white/5 p-2 rounded-2xl border border-white/5">
+          <div class="text-[11px] text-slate-300">總會面場次</div>
+          <div id="txtBoardTotalMeetings" class="text-lg font-black text-amber-300 mt-0.5">0</div>
+        </div>
+        <div class="bg-white/5 p-2 rounded-2xl border border-white/5">
+          <div class="text-[11px] text-slate-300">新開拓名單</div>
+          <div id="txtBoardTotalNewList" class="text-lg font-black text-emerald-300 mt-0.5">0</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 榮譽風雲榜 TOP 3 -->
+    <section class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80">
+      <div class="flex items-center gap-1.5 pb-2 border-b border-slate-100">
+        <span class="text-base">👑</span>
+        <h3 class="text-xs font-extrabold text-slate-800 tracking-wider">本期榮譽風雲榜</h3>
+      </div>
+      <div class="grid grid-cols-3 gap-2 mt-3" id="podiumContainer">
+        <!-- JS 動態渲染 Podium -->
+      </div>
+    </section>
+
+    <!-- 夥伴戰績列表 -->
+    <section class="space-y-2.5">
+      <div class="flex items-center justify-between px-1">
+        <h3 class="text-xs font-bold text-slate-600 flex items-center gap-1">
+          <span>👥</span> 夥伴戰績詳情 (<span id="txtMemberCount">0</span> 人)
+        </h3>
+        <div class="flex items-center gap-1">
+          <label for="selectSortBy" class="text-[11px] text-slate-400">排序：</label>
+          <select id="selectSortBy" class="text-xs bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none">
+            <option value="bv">BV 業績 (高到低)</option>
+            <option value="meetings">會面場次 (多到少)</option>
+            <option value="newList">新名單數 (多到少)</option>
+            <option value="checkin">打卡天數</option>
+            <option value="group">小組順序</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 夥伴卡片列表容器 -->
+      <div id="memberCardsList" class="space-y-2.5">
+        <!-- JS 動態渲染卡片與手風琴 -->
+      </div>
+    </section>
+  </main>
+
+  <!-- 底部固定送出按鈕 -->
+  <footer id="footerSubmit" class="fixed bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur border-t border-slate-200 z-20">
+    <div class="max-w-md mx-auto">
+      <button type="button" id="btnSubmit" class="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 active:from-blue-700 active:to-indigo-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 text-base transition">
+        <span>🚀</span> <span id="btnSubmitText">送出今日打卡</span>
+      </button>
+    </div>
+  </footer>
+
+  <!-- 首次使用 身分綁定彈窗 -->
+  <div id="bindModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+      <div class="text-center space-y-1">
+        <span class="text-4xl">👋</span>
+        <h3 class="text-lg font-bold text-slate-900">歡迎加入 Power Team！</h3>
+        <p class="text-xs text-slate-500">首次使用請先選擇您的姓名，完成一鍵綁定</p>
+      </div>
+
+      <div>
+        <label for="selectMember" class="block text-xs font-semibold text-slate-700 mb-1">請選擇您的名字：</label>
+        <select id="selectMember" class="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          <option value="">載入名單中...</option>
+        </select>
+      </div>
+
+      <button type="button" id="btnConfirmBind" class="w-full py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-xl shadow transition">
+        確認綁定此帳號
+      </button>
+    </div>
+  </div>
+
+  <!-- 個人週總結彈窗 -->
+  <div id="summaryModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full p-5 space-y-4 shadow-2xl flex flex-col max-h-[85vh]">
+      <div class="flex items-center justify-between border-b pb-2">
+        <h3 class="font-bold text-slate-800 flex items-center gap-1.5">
+          <span>✨</span> AI 本週行動總結
+        </h3>
+        <button id="btnCloseSummary" class="text-slate-400 hover:text-slate-600 text-xl font-bold">×</button>
+      </div>
+
+      <div class="overflow-y-auto flex-1 p-3 bg-slate-50 rounded-2xl border border-slate-200">
+        <pre id="summaryContent" class="text-xs font-sans whitespace-pre-wrap text-slate-700 leading-relaxed">正在請 Gemini AI 生成總結中，請稍候...</pre>
+      </div>
+
+      <button type="button" id="btnCopySummary" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow transition">
+        複製總結文字 (可直接發到群組)
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading 指示器 -->
+  <div id="loadingOverlay" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
+    <div class="bg-white px-5 py-4 rounded-2xl shadow-xl flex items-center gap-3">
+      <div class="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      <span class="text-sm font-medium text-slate-700">處理中，請稍候...</span>
+    </div>
+  </div>
+
+  <!-- 自訂美化提示彈窗 (打卡成功 / 分享卡片 / 錯誤提示) -->
+  <div id="customModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 shadow-2xl max-w-xs w-full text-center space-y-4 transform transition-all">
+      <div id="customModalIconBox" class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-3xl font-bold shadow-inner">
+        <span id="customModalIcon">✓</span>
+      </div>
+      <div class="space-y-1">
+        <h3 id="customModalTitle" class="text-base font-bold text-slate-800">今日打卡成功！</h3>
+        <p id="customModalSub" class="text-xs text-slate-500 leading-relaxed whitespace-pre-line">已同步推播至小組群與大群組</p>
+      </div>
+      <div id="customModalActions" class="space-y-2 pt-1">
+        <button type="button" id="btnCustomModalShare" onclick="handleShareCardClick(event)" class="hidden w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:from-emerald-800 active:to-teal-800 text-white text-sm font-bold rounded-2xl shadow-md transition flex items-center justify-center gap-1.5">
+          <span>📤</span> <span>分享戰績卡片至群組</span>
+        </button>
+        <button type="button" id="btnCustomModalClose" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-bold rounded-2xl shadow transition">
+          確定
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 前端核心 JavaScript 邏輯 (整合版) -->
+  <script>
+    window.LIFF_ID = '2011770495-NCS3BRFa';
+    window.INITIAL_PAGE = 'checkin';
+    // 🔗 Google Apps Script Web App 網址（部署至 GitHub Pages 時與後端試算表連線使用）
+    window.GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzZWr8GgjN5Xyp8QOaX5lpV-oJ0j5gaKmNaIzR0d_kVlgHboffZD11O8y6KnSzcelD3/exec' || localStorage.getItem('POWER_TEAM_GAS_URL') || '';
+
+    /**
+     * 🌐 後端雙模適配器：支援 GAS 內部執行 (google.script.run) 與 GitHub Pages (fetch REST API)
+     */
+    const BackendAPI = {
+      async getInitialData(lineUid) {
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          return new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .apiGetInitialData(lineUid);
+          });
+        }
+        const apiUrl = window.GAS_API_URL || localStorage.getItem('POWER_TEAM_GAS_URL');
+        if (apiUrl) {
+          const res = await fetch(`${apiUrl}?action=getInitialData&lineUid=${encodeURIComponent(lineUid)}`);
+          return await res.json();
+        }
+        throw new Error('未設定 GAS_API_URL');
+      },
+
+      async bindMember(name, lineUid) {
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          return new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .apiBindMember(name, lineUid);
+          });
+        }
+        const apiUrl = window.GAS_API_URL || localStorage.getItem('POWER_TEAM_GAS_URL');
+        if (apiUrl) {
+          const res = await fetch(apiUrl, {
+            method: 'POST',
+            redirect: 'follow',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'bind', name: name, lineUid: lineUid })
+          });
+          return await res.json();
+        }
+        throw new Error('未設定 GAS_API_URL');
+      },
+
+      async submitDaily(payload) {
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          return new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .apiSubmitDaily(payload);
+          });
+        }
+        const apiUrl = window.GAS_API_URL || localStorage.getItem('POWER_TEAM_GAS_URL');
+        if (apiUrl) {
+          const res = await fetch(apiUrl, {
+            method: 'POST',
+            redirect: 'follow',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'submitDaily', payload: payload })
+          });
+          return await res.json();
+        }
+        throw new Error('未設定 GAS_API_URL');
+      },
+
+      async getTeamPerformance(period, param, group) {
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          return new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .apiGetTeamPerformance(period, param, group);
+          });
+        }
+        const apiUrl = window.GAS_API_URL || localStorage.getItem('POWER_TEAM_GAS_URL');
+        if (apiUrl) {
+          const res = await fetch(`${apiUrl}?action=getTeamPerformance&period=${period}&param=${encodeURIComponent(param)}&groupId=${group}`);
+          return await res.json();
+        }
+        throw new Error('未設定 GAS_API_URL');
+      },
+
+      async getPersonalSummary(lineUid) {
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          return new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .apiGetPersonalSummary(lineUid);
+          });
+        }
+        const apiUrl = window.GAS_API_URL || localStorage.getItem('POWER_TEAM_GAS_URL');
+        if (apiUrl) {
+          const res = await fetch(`${apiUrl}?action=getPersonalSummary&lineUid=${encodeURIComponent(lineUid)}`);
+          return await res.json();
+        }
+        throw new Error('未設定 GAS_API_URL');
+      }
+    };
+
+    const state = {
+      lineUid: '',
+      userName: '',
+      group: 1,
+      role: '組員',
+      isBound: false,
+      fbPost: false,
+      counters: {
+        strangerChat: 3,
+        newListCount: 0,
+        trustBuilding: 0,
+        followUp: 0,
+        meetingScheduled: 0,
+        meetingFirst: 0,
+        meetingMa: 0,
+        meetingShow: 0,
+        meetingTotal: 0,
+        samples: 0,
+        tickets: 0,
+        newCustomer: 0,
+        repeatCustomer: 0
+      }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initDatePicker();
+      bindUIEvents();
+      initRouting();
+      initLiff();
+      initRouting();
+    });
+
+    function initDatePicker() {
+      const dateInput = document.getElementById('checkinDate');
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const todayStr = `${year}-${month}-${day}`;
+
+      dateInput.value = todayStr;
+      dateInput.max = todayStr;
+
+      checkLateStatus();
+      dateInput.addEventListener('change', checkLateStatus);
+    }
+
+    function checkLateStatus() {
+      const dateInput = document.getElementById('checkinDate');
+      const lateBadge = document.getElementById('lateBadge');
+      const btnSubmitText = document.getElementById('btnSubmitText');
+
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const todayStr = `${year}-${month}-${day}`;
+
+      const isPast = dateInput.value < todayStr;
+      const isLateTonight = (dateInput.value === todayStr && now.getHours() >= 23);
+
+      if (isPast || isLateTonight) {
+        lateBadge.classList.remove('hidden');
+        btnSubmitText.textContent = '送出補打卡 (標註補打卡)';
+      } else {
+        lateBadge.classList.add('hidden');
+        btnSubmitText.textContent = '送出今日打卡';
+      }
+    }
+
+    /**
+     * 🛡️ 安全的 LIFF 初始化函式（帶 2.5 秒逾時防護，絕不無限卡死）
+     */
+    async function getLiffReady() {
+      if (typeof liff === 'undefined') return false;
+      if (window._liffInitialized) return true;
+
+      const liffId = (window.LIFF_ID || '2011770495-NCS3BRFa').trim();
+      if (!liffId || liffId.startsWith('YOUR_')) return false;
+
+      if (!window._liffInitPromise) {
+        window._liffInitPromise = liff.init({ liffId: liffId })
+          .then(() => {
+            window._liffInitialized = true;
+            window._liffInitError = null;
+            return true;
+          })
+          .catch((err) => {
+            window._liffInitError = (err && (err.message || err.code)) ? (err.message || err.code) : String(err);
+            console.warn('[LIFF Init Error]', err);
+            return false;
+          });
+      }
+
+      // 等待初始化完成（最多等待 6 秒防卡死）
+      const timeout = new Promise((resolve) => setTimeout(() => resolve(false), 6000));
+      return await Promise.race([window._liffInitPromise, timeout]);
+    }
+
+    function initLiff() {
+      // 1. 先從本地讀取已儲存的身分（瞬間載入，0 毫秒立即更新 Banner）
+      const cachedName = localStorage.getItem('POWER_TEAM_USER_NAME');
+      const cachedGroup = localStorage.getItem('POWER_TEAM_USER_GROUP');
+      const cachedRole = localStorage.getItem('POWER_TEAM_USER_ROLE');
+      let cachedUid = localStorage.getItem('POWER_TEAM_DEVICE_UID');
+
+      if (!cachedUid) {
+        cachedUid = 'USER_' + Math.random().toString(36).substring(2, 12);
+        localStorage.setItem('POWER_TEAM_DEVICE_UID', cachedUid);
+      }
+      state.lineUid = cachedUid;
+
+      if (cachedName) {
+        state.userName = cachedName;
+        state.group = cachedGroup ? parseInt(cachedGroup, 10) : 1;
+        state.role = cachedRole || '組員';
+        state.isBound = true;
+        updateUserBanner();
+      }
+
+      // 2. 立即向後端試算表非同步載入名冊與身分 (最重要！絕不可被 LIFF 阻擋)
+      loadMemberStatus();
+
+      // 3. 背景非同步嘗試初始化 LIFF（完全不阻塞主線程，即使在 iframe 逾時也絲毫不影響身分顯示與操作）
+      if (typeof liff !== 'undefined') {
+        getLiffReady().then(async () => {
+          if (liff.isLoggedIn && liff.isLoggedIn()) {
+            const profile = await liff.getProfile();
+            if (profile && profile.userId) {
+              state.lineUid = profile.userId;
+              localStorage.setItem('POWER_TEAM_DEVICE_UID', profile.userId);
+            }
+          }
+        }).catch(err => {
+          console.warn('[LIFF 背景提示]', err.message);
+        });
+      }
+    }
+
+    function renderWeekStats(stats) {
+      if (!stats) return;
+      state.weekStats = stats;
+      const map = {
+        newListCount: 'week_newListCount',
+        trustBuilding: 'week_trustBuilding',
+        followUp: 'week_followUp',
+        meetingScheduled: 'week_meetingScheduled',
+        meetingFirst: 'week_meetingFirst',
+        meetingMa: 'week_meetingMa',
+        meetingTotal: 'week_meetingTotal',
+        newCustomer: 'week_newCustomer',
+        repeatCustomer: 'week_repeatCustomer',
+        tickets: 'week_tickets',
+        meetingShow: 'week_meetingShow'
+      };
+
+      for (const [key, id] of Object.entries(map)) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = stats[key] != null ? stats[key] : 0;
+      }
+
+      const elProfit = document.getElementById('week_cashProfit');
+      if (elProfit) elProfit.textContent = '$' + Number(stats.cashProfit || 0).toLocaleString();
+
+      const elBv = document.getElementById('week_bv');
+      if (elBv) elBv.textContent = Number(stats.bv || 0).toLocaleString() + ' BV';
+    }
+
+    async function loadMemberStatus() {
+      try {
+        const data = await BackendAPI.getInitialData(state.lineUid);
+        onInitialDataLoaded(data);
+      } catch (err) {
+        console.warn('背景名冊同步異常:', err);
+      }
+    }
+
+    function onInitialDataLoaded(data) {
+      showLoading(false);
+      if (data && data.success) {
+        // 如果後端已成功綁定此 UID
+        if (data.isBound && data.currentMember) {
+          state.userName = data.currentMember.name;
+          state.group = data.currentMember.group;
+          state.role = data.currentMember.role;
+          state.isBound = true;
+          // 同步存入 localStorage
+          localStorage.setItem('POWER_TEAM_USER_NAME', state.userName);
+          localStorage.setItem('POWER_TEAM_USER_GROUP', state.group);
+          localStorage.setItem('POWER_TEAM_USER_ROLE', state.role);
+          updateUserBanner();
+          if (data.weekStats) {
+            renderWeekStats(data.weekStats);
+          }
+        } else {
+          // 如果後端還沒綁定，但手機本地已經有名字，自動向後端補綁定
+          const localName = localStorage.getItem('POWER_TEAM_USER_NAME');
+          if (localName) {
+            BackendAPI.bindMember(localName, state.lineUid)
+              .then((res) => {
+                if (res && res.success && res.weekStats) {
+                  renderWeekStats(res.weekStats);
+                }
+              })
+              .catch(console.warn);
+          } else {
+            showBindModal(data.memberList || []);
+          }
+        }
+      }
+    }
+
+    function updateUserBanner() {
+      const statusEl = document.getElementById('userStatusText');
+      statusEl.innerHTML = `${state.userName} (${state.role}) ｜ 第 ${state.group} 小組 <span id="btnSwitchUser" class="underline text-blue-200 ml-1 cursor-pointer text-[10px]">(切換)</span>`;
+      
+      const switchBtn = document.getElementById('btnSwitchUser');
+      if (switchBtn) {
+        switchBtn.addEventListener('click', async () => {
+          if (confirm(`目前身分為「${state.userName}」，是否要切換綁定其他夥伴？`)) {
+            localStorage.removeItem('POWER_TEAM_USER_NAME');
+            showLoading(true);
+            try {
+              const data = await BackendAPI.getInitialData(state.lineUid);
+              showLoading(false);
+              showBindModal(data.memberList || []);
+            } catch (e) {
+              showLoading(false);
+            }
+          }
+        });
+      }
+    }
+
+    function showBindModal(memberList) {
+      const modal = document.getElementById('bindModal');
+      const select = document.getElementById('selectMember');
+      select.innerHTML = '<option value="">-- 請點選您的名字 --</option>';
+
+      memberList.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.name;
+        opt.textContent = `${m.name}（第 ${m.group} 組 - ${m.role}）`;
+        select.appendChild(opt);
+      });
+
+      modal.classList.remove('hidden');
+    }
+
+    let customModalCallback = null;
+    let customModalTimer = null;
+
+    function showCustomAlert(title, sub = '', icon = '✓', type = 'success', onClose = null, autoCloseMs = 0) {
+      if (customModalTimer) {
+        clearTimeout(customModalTimer);
+        customModalTimer = null;
+      }
+      customModalCallback = onClose;
+
+      const modal = document.getElementById('customModal');
+      const iconEl = document.getElementById('customModalIcon');
+      const iconBox = document.getElementById('customModalIconBox');
+      const titleEl = document.getElementById('customModalTitle');
+      const subEl = document.getElementById('customModalSub');
+      const shareBtn = document.getElementById('btnCustomModalShare');
+      const closeBtn = document.getElementById('btnCustomModalClose');
+
+      if (shareBtn) shareBtn.classList.add('hidden');
+
+      if (titleEl) titleEl.textContent = title;
+      if (subEl) {
+        subEl.textContent = sub;
+        subEl.style.display = sub ? 'block' : 'none';
+      }
+      if (iconEl) iconEl.textContent = icon;
+
+      if (iconBox) {
+        if (type === 'success') {
+          iconBox.className = 'w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-3xl font-bold shadow-inner';
+          if (closeBtn) closeBtn.className = 'w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-bold rounded-2xl shadow transition';
+        } else if (type === 'error') {
+          iconBox.className = 'w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto text-3xl font-bold shadow-inner';
+          if (closeBtn) closeBtn.className = 'w-full py-3 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-sm font-bold rounded-2xl shadow transition';
+        } else {
+          iconBox.className = 'w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto text-3xl font-bold shadow-inner';
+          if (closeBtn) closeBtn.className = 'w-full py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-bold rounded-2xl shadow transition';
+        }
+      }
+
+      if (closeBtn) closeBtn.textContent = '確定';
+
+      modal.classList.remove('hidden');
+
+      if (autoCloseMs > 0) {
+        customModalTimer = setTimeout(() => {
+          closeCustomModal();
+        }, autoCloseMs);
+      }
+    }
+
+    /**
+     * 🎉 打卡成功專屬彈窗：引導使用者主動點擊按鈕，由使用者手勢直開 shareTargetPicker
+     * 100% 避開 iOS/LINE 瀏覽器對異步回呼中呼叫 API 的彈窗阻擋問題！
+     */
+    let pendingFlexMessage = null;
+    let pendingPayload = null;
+
+    /**
+     * 📝 生成排版精美、可直接轉發至群組的文字戰報
+     */
+    function buildShareText(p) {
+      if (!p) p = state;
+      var isLate = !!p.isLate;
+      var badge = isLate ? '⏳【補打卡】' : '🔥【今日打卡】';
+      var w = p.weekStats || state.weekStats || {};
+      var meetTotal = p.meetingTotal != null ? p.meetingTotal : ((Number(p.meetingFirst) || 0) + (Number(p.meetingMa) || 0));
+      var dateVal = p.date || (document.getElementById('checkinDate') ? document.getElementById('checkinDate').value : '');
+      var nameVal = p.name || state.userName || '';
+      var groupVal = p.group || state.group || 1;
+      
+      var lines = [
+        badge + ' ' + nameVal + ' 打卡戰報',
+        '📅 日期：' + dateVal + ' ｜ 第 ' + groupVal + ' 小組',
+        '━━━━━━━━━━━━━━━',
+        '【拓展人脈】',
+        '⭐ 新增名單：' + (p.newListCount || 0) + ' 位 (週 ' + (w.newListCount != null ? w.newListCount : (p.newListCount || 0)) + ' 位)'
+      ];
+      if (p.newListNames) lines.push('   名單：' + p.newListNames);
+      lines.push('【關係經營】');
+      lines.push('• 潛在人選：' + (p.trustBuilding || 0) + ' 位 ｜ 顧客：' + (p.followUp || 0) + ' 位');
+      lines.push('⭐ 排約：' + (p.meetingScheduled || 0) + ' 次');
+      lines.push('【會面行動】');
+      lines.push('• 一訪：' + (p.meetingFirst || 0) + ' 次 ｜ 美安面：' + (p.meetingMa || 0) + ' 次');
+      lines.push('⭐ 會面總數：' + meetTotal + ' 次 (週 ' + (w.meetingTotal != null ? w.meetingTotal : meetTotal) + ' 次)');
+      if (p.meetingNotes) lines.push('   備註：' + p.meetingNotes);
+      lines.push('【美安業績】');
+      lines.push('⭐ 零售利潤：$' + (p.cashProfit || 0) + ' ｜ 產生 BV：' + (p.bv || 0) + ' BV');
+      if (p.tickets) lines.push('⭐ 賣票：' + p.tickets + ' 張');
+      if (p.newCustomer) lines.push('⭐ 新顧客：' + p.newCustomer + ' 位');
+      lines.push('━━━━━━━━━━━━━━━');
+      lines.push('💪 持續按表操課，邁向 MUFO 挑戰目標！');
+
+      return lines.join('\n');
+    }
+
+    /**
+     * 🎉 打卡成功專屬彈窗：引導使用者主動點擊按鈕分享
+     */
+    function showCheckinSuccessModal(flexMsg, message, payload) {
+      if (customModalTimer) {
+        clearTimeout(customModalTimer);
+        customModalTimer = null;
+      }
+      pendingFlexMessage = flexMsg;
+      pendingPayload = payload || null;
+
+      const modal = document.getElementById('customModal');
+      const iconEl = document.getElementById('customModalIcon');
+      const iconBox = document.getElementById('customModalIconBox');
+      const titleEl = document.getElementById('customModalTitle');
+      const subEl = document.getElementById('customModalSub');
+      const shareBtn = document.getElementById('btnCustomModalShare');
+      const closeBtn = document.getElementById('btnCustomModalClose');
+
+      if (titleEl) titleEl.textContent = '🎉 今日打卡成功！';
+      if (subEl) {
+        subEl.textContent = '資料已成功儲存至試算表。\n點擊下方按鈕將戰績卡片分享到群組！';
+        subEl.style.display = 'block';
+      }
+      if (iconEl) iconEl.textContent = '✓';
+      if (iconBox) {
+        iconBox.className = 'w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-3xl font-bold shadow-inner';
+      }
+
+      // 啟用主動作分享按鈕（直接替換整個按鈕內容，絕不受子元素遺失影響）
+      if (shareBtn) {
+        shareBtn.classList.remove('hidden');
+        shareBtn.disabled = false;
+        shareBtn.className = 'w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:from-emerald-800 active:to-teal-800 text-white text-sm font-bold rounded-2xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer';
+        shareBtn.innerHTML = '<span>📤</span> <span>分享戰績卡片至群組</span>';
+      }
+
+      // 關閉按鈕改為次要按鈕
+      if (closeBtn) {
+        closeBtn.className = 'w-full py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-600 text-xs font-semibold rounded-2xl transition';
+        closeBtn.textContent = '關閉視窗 (不分享)';
+      }
+
+      customModalCallback = () => {
+        if (typeof liff !== 'undefined' && liff.isInClient && liff.isInClient()) {
+          liff.closeWindow();
+        }
+      };
+
+      modal.classList.remove('hidden');
+    }
+
+    /**
+     * 🚀 點擊分享卡片核心處理：
+     * 雙軌保證主動發送：
+     * 1. 軌道 A (優先推薦)：若在 LINE 內開啟，呼叫官方 shareTargetPicker 彈出原生群組選擇視窗，
+     *    勾選小組群或大群後，由 LINE 主動代發精美 Flex 戰績卡片至群組！
+     *    （零額度消耗、免手動複製貼上、自動完成發送！）
+     * 2. 軌道 B (安全備援)：若在外部瀏覽器或無法使用 picker，開啟 LINE 原生傳送對象清單並自動複製戰報。
+     */
+    async function handleShareCardClick(e) {
+      if (e && e.preventDefault) e.preventDefault();
+      var shareBtn = document.getElementById('btnCustomModalShare');
+      if (!shareBtn) return;
+
+      shareBtn.disabled = true;
+      shareBtn.innerHTML = '<span>⏳</span> <span>連線 LINE 服務中...</span>';
+
+      // 1. 等待 LIFF 就緒
+      try {
+        await getLiffReady();
+      } catch (err) {}
+
+      var isLiffReady = typeof liff !== 'undefined' && !!window._liffInitialized;
+      var isInClient = typeof liff !== 'undefined' && typeof liff.isInClient === 'function' && liff.isInClient();
+      var isLoggedIn = typeof liff !== 'undefined' && typeof liff.isLoggedIn === 'function' && liff.isLoggedIn();
+      var isShareAvail = typeof liff !== 'undefined' && typeof liff.isApiAvailable === 'function' && liff.isApiAvailable('shareTargetPicker');
+
+      // 2. 若在外部瀏覽器且尚未登入 LINE，引導使用者登入以啟用 shareTargetPicker
+      if (!isInClient && !isLoggedIn && typeof liff !== 'undefined' && typeof liff.login === 'function') {
+        shareBtn.innerHTML = '<span>🔐</span> <span>引導 LINE 登入中...</span>';
+        liff.login();
+        return;
+      }
+
+      // 3. 官方 shareTargetPicker 可用：直接彈出群組選擇並代發 Flex 戰績卡片
+      if (isShareAvail && pendingFlexMessage) {
+        shareBtn.innerHTML = '<span>📲</span> <span>開啟群組選擇中...</span>';
+        try {
+          var res = await liff.shareTargetPicker([pendingFlexMessage]);
+          if (res) {
+            shareBtn.innerHTML = '<span>✓</span> <span>已成功發送至群組！</span>';
+            shareBtn.className = 'w-full py-3 bg-emerald-600 text-white text-sm font-bold rounded-2xl shadow transition flex items-center justify-center gap-1.5';
+            setTimeout(function() { closeCustomModal(); }, 1500);
+            return;
+          } else {
+            // 使用者在 LINE 群組清單中按了取消或返回
+            shareBtn.disabled = false;
+            shareBtn.innerHTML = '<span>📤</span> <span>分享戰績卡片至群組</span>';
+            return;
+          }
+        } catch (err) {
+          console.error('[shareTargetPicker Error]', err);
+          showCustomAlert(
+            '卡片發送未完成',
+            'LINE 回傳錯誤：' + (err.message || String(err)) + '\n\n即將為您開啟備援發送',
+            '⚠️',
+            'error',
+            function() { executeLineNativeShare(shareBtn); },
+            2500
+          );
+          return;
+        }
+      }
+
+      // 4. 若當前環境未通過 shareTargetPicker 檢測，明確提示原因並啟動備援
+      var failReason = '';
+      if (!isLiffReady) {
+        failReason = 'LIFF 未能成功連線 (' + (window._liffInitError || '逾時') + ')';
+      } else if (!isLoggedIn) {
+        failReason = '尚未完成 LINE 登入';
+      } else if (!pendingFlexMessage) {
+        failReason = '戰績卡片資料讀取異常';
+      } else {
+        failReason = '當前環境或 LINE 版本未支援 shareTargetPicker';
+      }
+
+      showCustomAlert(
+        '提示：切換至備援發送',
+        '【原因】：' + failReason + '\n\n【排查】：建議直接在手機 LINE 內點開 LIFF 連結開啟。\n\n點擊「確定」將為您複製戰報並開啟 LINE 群組！',
+        'ℹ️',
+        'info',
+        function() {
+          executeLineNativeShare(shareBtn);
+        }
+      );
+    }
+    window.handleShareCardClick = handleShareCardClick;
+
+    /**
+     * 📲 LINE 原生分享執行器（穿透 Google Apps Script 沙盒，直接呼叫 LINE App 選擇傳送群組）
+     */
+    function executeLineNativeShare(shareBtn) {
+      if (shareBtn) {
+        shareBtn.innerHTML = '<span>📲</span> <span>開啟 LINE 群組中...</span>';
+      }
+
+      var text = buildShareText(pendingPayload || state);
+
+      // 同步先複製至剪貼簿（雙保險防丟失）
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).catch(function() {});
+      }
+
+      // 組合 LINE 分享連結
+      var lineBase = String.fromCharCode(104,116,116,112,115,58,47,47,108,105,110,101,46,109,101,47,82,47,115,104,97,114,101,63,116,101,120,116,61);
+      var lineUrl = lineBase + encodeURIComponent(text);
+
+      // 若在 LIFF 環境中，使用 liff.openWindow 穿透沙盒開啟；否則使用 window.open
+      if (typeof liff !== 'undefined' && typeof liff.openWindow === 'function') {
+        try {
+          liff.openWindow({ url: lineUrl, external: true });
+        } catch (e) {
+          window.open(lineUrl, '_blank');
+        }
+      } else {
+        window.open(lineUrl, '_blank');
+      }
+
+      setTimeout(function() {
+        if (shareBtn) {
+          shareBtn.disabled = false;
+          shareBtn.innerHTML = '<span>📤</span> <span>分享戰績卡片至群組</span>';
+        }
+      }, 2500);
+    }
+
+    function fallbackCopyShareText(btn) {
+      var text = buildShareText(pendingPayload || state);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<span>✓</span> <span>已複製戰報！請至群組貼上</span>';
+          }
+        }).catch(function() {
+          showManualCopyPrompt(btn, text);
+        });
+      } else {
+        showManualCopyPrompt(btn, text);
+      }
+    }
+
+    function showManualCopyPrompt(btn, text) {
+      prompt('請手動複製以下打卡戰報文字發送至群組：', text);
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>📤</span> <span>分享戰績卡片至群組</span>';
+      }
+    }
+
+    function closeCustomModal() {
+      if (customModalTimer) {
+        clearTimeout(customModalTimer);
+        customModalTimer = null;
+      }
+      const modal = document.getElementById('customModal');
+      if (modal) modal.classList.add('hidden');
+      if (typeof customModalCallback === 'function') {
+        const cb = customModalCallback;
+        customModalCallback = null;
+        cb();
+      }
+    }
+
+    function bindUIEvents() {
+      // 自訂提示彈窗關閉按鈕
+      document.getElementById('btnCustomModalClose')?.addEventListener('click', closeCustomModal);
+
+      // 分享按鈕以 addEventListener 雙重保險綁定
+      document.getElementById('btnCustomModalShare')?.addEventListener('click', window.handleShareCardClick);
+
+      // 計數器
+      document.querySelectorAll('.btn-step').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const target = btn.getAttribute('data-target');
+          const delta = parseInt(btn.getAttribute('data-delta'), 10);
+          if (state.counters[target] !== undefined) {
+            state.counters[target] = Math.max(0, state.counters[target] + delta);
+            const displayEl = document.getElementById(`txt_${target}`);
+            if (displayEl) displayEl.textContent = state.counters[target];
+          }
+        });
+      });
+
+      // 綁定確認
+      document.getElementById('btnConfirmBind').addEventListener('click', async () => {
+        const selectedName = document.getElementById('selectMember').value;
+        if (!selectedName) {
+          showCustomAlert('請先選擇您的名字', '請從名單中點選您的姓名', 'ℹ️', 'info');
+          return;
+        }
+
+        showLoading(true);
+        try {
+          const res = await BackendAPI.bindMember(selectedName, state.lineUid);
+          showLoading(false);
+          if (res && res.success) {
+            state.userName = res.name;
+            state.group = res.group;
+            state.role = res.role;
+            state.isBound = true;
+            localStorage.setItem('POWER_TEAM_USER_NAME', state.userName);
+            localStorage.setItem('POWER_TEAM_USER_GROUP', state.group);
+            localStorage.setItem('POWER_TEAM_USER_ROLE', state.role);
+            updateUserBanner();
+            if (res.weekStats) {
+              renderWeekStats(res.weekStats);
+            }
+            document.getElementById('bindModal').classList.add('hidden');
+            showCustomAlert('綁定成功！', `歡迎 ${state.userName} 夥伴加入 Power Team`, '✓', 'success');
+          } else {
+            showCustomAlert('綁定失敗', (res ? res.message : '') || '請確認姓名後重試', '⚠️', 'error');
+          }
+        } catch (err) {
+          showLoading(false);
+          showCustomAlert('連線失敗', '網路連線異常，請重試', '⚠️', 'error');
+        }
+      });
+
+      // 打卡送出
+      document.getElementById('btnSubmit').addEventListener('click', handleSubmit);
+
+      // 週總結 (可選)
+      document.getElementById('btnWeeklySummary')?.addEventListener('click', handleWeeklySummary);
+      document.getElementById('btnCloseSummary')?.addEventListener('click', () => {
+        document.getElementById('summaryModal')?.classList.add('hidden');
+      });
+
+      // 複製總結
+      document.getElementById('btnCopySummary')?.addEventListener('click', () => {
+        const text = document.getElementById('summaryContent')?.textContent || '';
+        navigator.clipboard.writeText(text).then(() => {
+          showCustomAlert('已複製到剪貼簿！', '可直接在 LINE 群組中貼上分享 🎉', '📋', 'success');
+        });
+      });
+
+      // === 頂部快速跳轉與導航 ===
+      document.getElementById('btnNavToLeaderboard')?.addEventListener('click', () => switchTab('leaderboard'));
+      document.getElementById('btnNavToCheckin')?.addEventListener('click', () => switchTab('checkin'));
+      document.getElementById('tabBtnCheckin')?.addEventListener('click', () => switchTab('checkin'));
+      document.getElementById('tabBtnLeaderboard')?.addEventListener('click', () => switchTab('leaderboard'));
+
+      // 小組篩選切換
+      document.querySelectorAll('.btn-group-filter').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const group = btn.getAttribute('data-group');
+          setLeaderboardGroup(group);
+        });
+      });
+
+      // 週期篩選切換
+      document.querySelectorAll('.btn-period-filter').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const period = btn.getAttribute('data-period');
+          setLeaderboardPeriod(period);
+        });
+      });
+
+      // 歷史週別選單切換
+      document.getElementById('selectHistoryWeek').addEventListener('change', (e) => {
+        lbState.param = e.target.value;
+        lbState.period = 'week';
+        updatePeriodButtonUI('week');
+        loadLeaderboardData();
+      });
+
+      // 重新整理戰報
+      document.getElementById('btnRefreshLeaderboard').addEventListener('click', () => {
+        loadLeaderboardData(true);
+      });
+
+      // 排序切換
+      document.getElementById('selectSortBy').addEventListener('change', (e) => {
+        lbState.sortBy = e.target.value;
+        if (lbState.currentData) {
+          renderLeaderboardMembers();
+        }
+      });
+    }
+
+    /**
+     * 🌐 深度 URL 路由與入口識別 (支援 LINE liff.state、raw URL、Hash 及後端注入)
+     */
+    function getTargetPage() {
+      try {
+        const fullHref = window.location.href || '';
+        const search = window.location.search || '';
+        const hash = window.location.hash || '';
+
+        // 1. 直接全文掃描關鍵字 (防止各類 LINE Client 轉義遺失)
+        if (fullHref.includes('page=leaderboard') || fullHref.includes('page=report') || fullHref.includes('page=team') || fullHref.includes('tab=leaderboard')) {
+          return 'leaderboard';
+        }
+        if (fullHref.includes('page=checkin') || fullHref.includes('tab=checkin')) {
+          return 'checkin';
+        }
+
+        // 2. 深入解析 liff.state (LINE 最常將 query 包在 liff.state 裡面)
+        // 例如: ?liff.state=%3Fpage%3Dleaderboard
+        const urlParams = new URLSearchParams(search);
+        let stateParam = urlParams.get('liff.state');
+        
+        if (!stateParam && hash.includes('liff.state=')) {
+          const match = hash.match(/liff\.state=([^&]+)/);
+          if (match && match[1]) stateParam = match[1];
+        }
+
+        if (stateParam) {
+          try {
+            let decoded = decodeURIComponent(stateParam);
+            if (decoded.includes('%')) {
+              try { decoded = decodeURIComponent(decoded); } catch (e) {}
+            }
+            if (decoded.includes('page=leaderboard') || decoded.includes('page=report') || decoded.includes('page=team')) {
+              return 'leaderboard';
+            }
+            if (decoded.includes('page=checkin')) {
+              return 'checkin';
+            }
+            const stateQuery = decoded.startsWith('?') ? decoded : (decoded.includes('?') ? decoded.substring(decoded.indexOf('?')) : '?' + decoded);
+            const stateSp = new URLSearchParams(stateQuery);
+            const p = stateSp.get('page') || stateSp.get('tab');
+            if (p) {
+              const pLower = p.toLowerCase();
+              return (pLower === 'leaderboard' || pLower === 'report' || pLower === 'team' || pLower === 'lb') ? 'leaderboard' : 'checkin';
+            }
+          } catch (e) {}
+        }
+
+        // 3. 常規 search / hash 參數讀取
+        const normalPage = urlParams.get('page') || urlParams.get('tab');
+        if (normalPage) {
+          const npLower = normalPage.toLowerCase();
+          return (npLower === 'leaderboard' || npLower === 'report' || npLower === 'team' || npLower === 'lb') ? 'leaderboard' : 'checkin';
+        }
+
+        // 4. 後端注入的 INITIAL_PAGE
+        if (window.INITIAL_PAGE && typeof window.INITIAL_PAGE === 'string') {
+          const bp = window.INITIAL_PAGE.trim().toLowerCase();
+          if (bp && !bp.includes('<')) {
+            return (bp === 'leaderboard' || bp === 'report' || bp === 'team' || bp === 'lb') ? 'leaderboard' : 'checkin';
+          }
+        }
+      } catch (err) {
+        console.warn('[getTargetPage Error]', err);
+      }
+      return 'checkin';
+    }
+
+    function initRouting() {
+      // 1. 同步從 window / href / liff.state 解析
+      const page = getTargetPage();
+      switchTab(page, false);
+
+      // 2. Google Apps Script 專屬 API：穿透 iframe 取得頂層瀏覽器 URL 參數 (100% 官方標準解法)
+      if (typeof google !== 'undefined' && google.script && google.script.url) {
+        google.script.url.getLocation(function(loc) {
+          if (loc && loc.parameter) {
+            const rawParam = loc.parameter.page || loc.parameter.tab || loc.parameter['liff.state'] || '';
+            const pStr = String(rawParam).toLowerCase();
+            if (pStr.includes('leaderboard') || pStr.includes('report') || pStr.includes('team') || pStr.includes('lb')) {
+              switchTab('leaderboard', false);
+            } else if (pStr.includes('checkin')) {
+              switchTab('checkin', false);
+            }
+          }
+          if (loc && loc.hash) {
+            const hStr = String(loc.hash).toLowerCase();
+            if (hStr.includes('leaderboard') || hStr.includes('report') || hStr.includes('team')) {
+              switchTab('leaderboard', false);
+            }
+          }
+        });
+      }
+    }
+
+    // ==========================================
+    // 🏆 團隊戰報 狀態管理與渲染邏輯
+    // ==========================================
+    const lbState = {
+      currentTab: 'checkin',
+      group: 'all',
+      period: 'week',
+      param: 'current',
+      sortBy: 'bv',
+      cache: {},
+      currentData: null
+    };
+
+    function switchTab(tab, updateUrl = true) {
+      lbState.currentTab = tab;
+      const tabCheckin = document.getElementById('tabBtnCheckin');
+      const tabLb = document.getElementById('tabBtnLeaderboard');
+      const viewCheckin = document.getElementById('viewCheckin');
+      const viewLb = document.getElementById('viewLeaderboard');
+      const footerSubmit = document.getElementById('footerSubmit');
+
+      const headerIcon = document.getElementById('headerIcon');
+      const headerText = document.getElementById('headerText');
+      const btnWeeklySummary = document.getElementById('btnWeeklySummary');
+      const btnNavToLeaderboard = document.getElementById('btnNavToLeaderboard');
+      const btnNavToCheckin = document.getElementById('btnNavToCheckin');
+
+      if (tab === 'checkin') {
+        if (tabCheckin) tabCheckin.className = 'flex-1 py-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 bg-white text-blue-600 shadow-sm';
+        if (tabLb) tabLb.className = 'flex-1 py-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 text-slate-500 hover:text-slate-800';
+        
+        if (headerIcon) headerIcon.textContent = '🔥';
+        if (headerText) headerText.textContent = 'Power Team 行動打卡';
+        if (btnWeeklySummary) btnWeeklySummary.classList.remove('hidden');
+        if (btnNavToLeaderboard) btnNavToLeaderboard.classList.remove('hidden');
+        if (btnNavToCheckin) btnNavToCheckin.classList.add('hidden');
+        document.title = 'Power Team 每日行動打卡';
+
+        viewCheckin.classList.remove('hidden');
+        footerSubmit.classList.remove('hidden');
+        viewLb.classList.add('hidden');
+      } else {
+        if (tabLb) tabLb.className = 'flex-1 py-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 bg-white text-indigo-600 shadow-sm';
+        if (tabCheckin) tabCheckin.className = 'flex-1 py-2 text-xs font-bold rounded-xl transition-all duration-200 flex items-center justify-center gap-1.5 text-slate-500 hover:text-slate-800';
+
+        if (headerIcon) headerIcon.textContent = '🏆';
+        if (headerText) headerText.textContent = 'Power Team 團隊戰報';
+        if (btnWeeklySummary) btnWeeklySummary.classList.add('hidden');
+        if (btnNavToLeaderboard) btnNavToLeaderboard.classList.add('hidden');
+        if (btnNavToCheckin) btnNavToCheckin.classList.remove('hidden');
+        document.title = 'Power Team 團隊戰報';
+
+        viewCheckin.classList.add('hidden');
+        footerSubmit.classList.add('hidden');
+        viewLb.classList.remove('hidden');
+
+        // 切換到戰報時若未載入資料則自動載入
+        if (!lbState.currentData) {
+          loadLeaderboardData();
+        }
+      }
+
+      // 更新瀏覽器 URL 參數，避免重整丟失分頁
+      if (updateUrl && window.history && window.history.replaceState) {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set('page', tab);
+          window.history.replaceState({}, '', url.toString());
+        } catch (e) {}
+      }
+    }
+
+    function setLeaderboardGroup(group) {
+      if (lbState.group === group) return;
+      lbState.group = group;
+      document.querySelectorAll('.btn-group-filter').forEach(btn => {
+        if (btn.getAttribute('data-group') === group) {
+          btn.className = 'btn-group-filter py-1.5 text-xs font-bold rounded-xl bg-blue-600 text-white shadow-xs transition';
+        } else {
+          btn.className = 'btn-group-filter py-1.5 text-xs font-bold rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
+        }
+      });
+      loadLeaderboardData();
+    }
+
+    function setLeaderboardPeriod(period) {
+      if (lbState.period === period && lbState.param === 'current') return;
+      lbState.period = period;
+      lbState.param = 'current';
+      document.getElementById('selectHistoryWeek').value = 'current';
+      updatePeriodButtonUI(period);
+      loadLeaderboardData();
+    }
+
+    function updatePeriodButtonUI(period) {
+      document.querySelectorAll('.btn-period-filter').forEach(btn => {
+        if (btn.getAttribute('data-period') === period && lbState.param === 'current') {
+          btn.className = 'btn-period-filter py-1.5 text-xs font-bold rounded-xl bg-indigo-600 text-white shadow-xs transition';
+        } else {
+          btn.className = 'btn-period-filter py-1.5 text-xs font-bold rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
+        }
+      });
+    }
+
+    async function loadLeaderboardData(forceRefresh) {
+      const cacheKey = `${lbState.period}_${lbState.param}_${lbState.group}`;
+      if (!forceRefresh && lbState.cache[cacheKey]) {
+        lbState.currentData = lbState.cache[cacheKey];
+        renderLeaderboard();
+        return;
+      }
+
+      const refreshIcon = document.getElementById('refreshIcon');
+      if (refreshIcon) refreshIcon.classList.add('animate-spin');
+
+      try {
+        const res = await BackendAPI.getTeamPerformance(lbState.period, lbState.param, lbState.group);
+        if (refreshIcon) refreshIcon.classList.remove('animate-spin');
+        if (res && res.success) {
+          lbState.cache[cacheKey] = res;
+          lbState.currentData = res;
+          renderLeaderboard();
+        } else {
+          showCustomAlert('讀取失敗', res ? res.message : '讀取戰況失敗', '⚠️', 'error');
+        }
+      } catch (err) {
+        if (refreshIcon) refreshIcon.classList.remove('animate-spin');
+        console.warn('讀取戰況失敗，載入備用資料:', err);
+        loadMockLeaderboardData(cacheKey);
+      }
+    }
+
+    function loadMockLeaderboardData(cacheKey) {
+      const mockMembers = [
+        { name: '王小美', group: 1, role: '組長', checkinDays: 6, bv: 650, totalMeetings: 6, meetings: { scheduled: 2, first: 2, ma: 1, show: 1, notes: '營養諮詢、彩妝體驗' }, newListCount: 12, newListNames: '張婷、許文、陳芳', trustBuilding: 18, followUp: 7, followUpNames: '關心小芳保養品、跟進阿文', samples: 4, tickets: 3, newCustomer: 2, repeatCustomer: 1, cashProfit: 1200, fbPostDays: 6, strangerChat: 18 },
+        { name: '陳大明', group: 1, role: '組員', checkinDays: 5, bv: 320, totalMeetings: 5, meetings: { scheduled: 2, first: 2, ma: 1, show: 0, notes: 'OPC諮詢' }, newListCount: 8, newListNames: '李浩、黃強', trustBuilding: 12, followUp: 5, followUpNames: '阿浩腸胃改善', samples: 2, tickets: 2, newCustomer: 1, repeatCustomer: 0, cashProfit: 600, fbPostDays: 5, strangerChat: 15 },
+        { name: '李佩珊', group: 2, role: '組長', checkinDays: 6, bv: 580, totalMeetings: 7, meetings: { scheduled: 3, first: 2, ma: 1, show: 1, notes: '減重評估、事業說明' }, newListCount: 15, newListNames: '朱琳、何偉、宋晴', trustBuilding: 20, followUp: 8, followUpNames: '佩玲減重紀錄', samples: 5, tickets: 4, newCustomer: 3, repeatCustomer: 2, cashProfit: 2500, fbPostDays: 6, strangerChat: 22 },
+        { name: '張建志', group: 2, role: '組員', checkinDays: 4, bv: 210, totalMeetings: 3, meetings: { scheduled: 1, first: 1, ma: 1, show: 0, notes: '保養分享' }, newListCount: 6, newListNames: '林傑、高山', trustBuilding: 10, followUp: 4, followUpNames: '高大哥維他命', samples: 2, tickets: 1, newCustomer: 1, repeatCustomer: 1, cashProfit: 500, fbPostDays: 4, strangerChat: 12 },
+        { name: '林雅婷', group: 3, role: '組長', checkinDays: 5, bv: 490, totalMeetings: 5, meetings: { scheduled: 2, first: 1, ma: 1, show: 1, notes: '健康生活評估' }, newListCount: 11, newListNames: '謝宏、羅琪', trustBuilding: 16, followUp: 6, followUpNames: '宏哥益生菌售後', samples: 3, tickets: 2, newCustomer: 2, repeatCustomer: 1, cashProfit: 1500, fbPostDays: 5, strangerChat: 17 },
+        { name: '黃俊傑', group: 3, role: '組員', checkinDays: 5, bv: 180, totalMeetings: 4, meetings: { scheduled: 2, first: 1, ma: 1, show: 0, notes: '茶會會面' }, newListCount: 7, newListNames: '曾浩、董敏', trustBuilding: 11, followUp: 3, followUpNames: '敏姐防曬乳', samples: 2, tickets: 1, newCustomer: 0, repeatCustomer: 1, cashProfit: 400, fbPostDays: 5, strangerChat: 14 }
+      ];
+
+      const filtered = (lbState.group === 'all') 
+        ? mockMembers.filter(m => Number(m.group) > 0) 
+        : mockMembers.filter(m => m.group === Number(lbState.group));
+
+      const totalBv = filtered.reduce((s, m) => s + m.bv, 0);
+      const totalMeetings = filtered.reduce((s, m) => s + m.totalMeetings, 0);
+      const totalNewList = filtered.reduce((s, m) => s + m.newListCount, 0);
+      const active = filtered.filter(m => m.checkinDays > 0).length;
+
+      const topBv = [...filtered].sort((a, b) => b.bv - a.bv).slice(0, 3);
+      const topMeetings = [...filtered].sort((a, b) => b.totalMeetings - a.totalMeetings).slice(0, 3);
+      const topNewList = [...filtered].sort((a, b) => b.newListCount - a.newListCount).slice(0, 3);
+
+      const res = {
+        success: true,
+        period: lbState.period,
+        periodLabel: lbState.period === 'week' ? '本週戰報 (9/26～10/2)' : (lbState.period === 'month' ? '10 月份戰報' : '2026.Q4 季總表'),
+        groupId: lbState.group,
+        availableWeeks: ['9/26～10/2', '9/19～9/25', '9/12～9/18'],
+        teamSummary: {
+          totalBv: totalBv,
+          totalMeetings: totalMeetings,
+          totalNewList: totalNewList,
+          activeMembers: active,
+          totalMembers: filtered.length,
+          checkinRate: `${filtered.length > 0 ? Math.round(active / filtered.length * 100) : 0}%`
+        },
+        rankings: {
+          topBv: topBv.map(m => ({ name: m.name, group: m.group, value: m.bv })),
+          topMeetings: topMeetings.map(m => ({ name: m.name, group: m.group, value: m.totalMeetings })),
+          topNewList: topNewList.map(m => ({ name: m.name, group: m.group, value: m.newListCount }))
+        },
+        members: filtered
+      };
+
+      lbState.cache[cacheKey] = res;
+      lbState.currentData = res;
+      renderLeaderboard();
+    }
+
+    function renderLeaderboard() {
+      const data = lbState.currentData;
+      if (!data) return;
+
+      // 1. KPI 看板
+      document.getElementById('txtBoardPeriodLabel').textContent = data.periodLabel || '本週戰報';
+      document.getElementById('txtBoardGroupTitle').textContent = (lbState.group === 'all') 
+        ? '全體隊伍戰力儀表板' 
+        : `第 ${lbState.group} 小組戰力儀表板`;
+      document.getElementById('txtBoardCheckinRate').textContent = `打卡率 ${data.teamSummary.checkinRate}`;
+      document.getElementById('txtBoardTotalBv').textContent = (data.teamSummary.totalBv || 0).toLocaleString();
+      document.getElementById('txtBoardTotalMeetings').textContent = data.teamSummary.totalMeetings || 0;
+      document.getElementById('txtBoardTotalNewList').textContent = data.teamSummary.totalNewList || 0;
+      document.getElementById('txtMemberCount').textContent = data.members ? data.members.length : 0;
+
+      // 2. 歷史週別下拉選項同步
+      if (data.availableWeeks && data.availableWeeks.length > 0) {
+        const selectWeek = document.getElementById('selectHistoryWeek');
+        const currentSelected = selectWeek.value;
+        selectWeek.innerHTML = '<option value="current">-- 本週進行中 (即時累加) --</option>';
+        data.availableWeeks.forEach(w => {
+          const opt = document.createElement('option');
+          opt.value = w;
+          opt.textContent = `第 ${w} 週`;
+          if (w === currentSelected) opt.selected = true;
+          selectWeek.appendChild(opt);
+        });
+      }
+
+      // 3. 榮譽風雲榜 TOP 3
+      renderPodium(data.rankings);
+
+      // 4. 夥伴列表與手風琴
+      renderLeaderboardMembers();
+    }
+
+    function renderPodium(rankings) {
+      const container = document.getElementById('podiumContainer');
+      container.innerHTML = '';
+
+      const topBv = (rankings && rankings.topBv && rankings.topBv[0]) || null;
+      const topMeet = (rankings && rankings.topMeetings && rankings.topMeetings[0]) || null;
+      const topList = (rankings && rankings.topNewList && rankings.topNewList[0]) || null;
+
+      const podiumItems = [
+        {
+          title: '業績王者',
+          icon: '💎',
+          badge: '🥇 BV 冠軍',
+          name: topBv ? topBv.name : '衝刺中',
+          sub: topBv ? `${topBv.value} BV` : '尚未產生',
+          bg: 'from-amber-50 to-rose-50 border-amber-200/80 text-rose-700'
+        },
+        {
+          title: '行動先鋒',
+          icon: '🤝',
+          badge: '🏃‍♂️ 會面王',
+          name: topMeet ? topMeet.name : '衝刺中',
+          sub: topMeet ? `${topMeet.value} 場會面` : '尚未產生',
+          bg: 'from-blue-50 to-indigo-50 border-blue-200/80 text-blue-700'
+        },
+        {
+          title: '開發達人',
+          icon: '📋',
+          badge: '🌟 名單王',
+          name: topList ? topList.name : '衝刺中',
+          sub: topList ? `${topList.value} 位名單` : '尚未產生',
+          bg: 'from-emerald-50 to-teal-50 border-emerald-200/80 text-emerald-700'
+        }
+      ];
+
+      podiumItems.forEach(item => {
+        const div = document.createElement('div');
+        div.className = `p-2.5 rounded-2xl bg-gradient-to-b ${item.bg} border flex flex-col items-center text-center shadow-xs`;
+        div.innerHTML = `
+          <span class="text-[10px] font-black tracking-tight">${item.badge}</span>
+          <span class="text-xl my-0.5">${item.icon}</span>
+          <div class="font-extrabold text-xs text-slate-800 truncate w-full">${item.name}</div>
+          <div class="text-[11px] font-bold mt-0.5">${item.sub}</div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function renderLeaderboardMembers() {
+      const container = document.getElementById('memberCardsList');
+      container.innerHTML = '';
+
+      if (!lbState.currentData || !lbState.currentData.members || lbState.currentData.members.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-8 bg-white rounded-2xl border border-slate-200/80 text-slate-400 text-xs">
+            <span class="text-2xl block mb-1">📭</span>
+            該組或該區間尚無打卡紀錄
+          </div>
+        `;
+        return;
+      }
+
+      // 排序
+      const sorted = [...lbState.currentData.members].sort((a, b) => {
+        if (lbState.sortBy === 'bv') return b.bv - a.bv;
+        if (lbState.sortBy === 'meetings') return b.totalMeetings - a.totalMeetings;
+        if (lbState.sortBy === 'newList') return b.newListCount - a.newListCount;
+        if (lbState.sortBy === 'checkin') return b.checkinDays - a.checkinDays;
+        if (lbState.sortBy === 'group') return a.group - b.group;
+        return 0;
+      });
+
+      sorted.forEach((m, idx) => {
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-2xl p-3.5 shadow-sm border border-slate-200/80 space-y-2.5 transition';
+
+        const roleBadge = m.role === '組長' 
+          ? '<span class="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded-md font-bold">組長</span>'
+          : '<span class="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded-md">組員</span>';
+
+        const rankBadge = idx < 3 && lbState.sortBy === 'bv' && m.bv > 0
+          ? `<span class="w-5 h-5 flex items-center justify-center rounded-full text-xs font-black ${idx === 0 ? 'bg-amber-400 text-white' : idx === 1 ? 'bg-slate-300 text-slate-700' : 'bg-amber-600 text-white'}">${idx + 1}</span>`
+          : `<span class="text-xs text-slate-400 font-bold w-5 text-center">${idx + 1}</span>`;
+
+        card.innerHTML = `
+          <!-- 頂部姓名與身分 -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              ${rankBadge}
+              <span class="text-sm font-bold text-slate-800">${m.name}</span>
+              ${roleBadge}
+              <span class="text-[11px] text-slate-400 font-medium">第 ${m.group} 組</span>
+            </div>
+            <span class="text-[11px] font-bold ${m.checkinDays > 0 ? 'text-blue-600 bg-blue-50' : 'text-slate-400 bg-slate-100'} px-2 py-0.5 rounded-full">
+              打卡 ${m.checkinDays} 天
+            </span>
+          </div>
+
+          <!-- 3 大核心指標膠囊 -->
+          <div class="grid grid-cols-3 gap-2 text-center">
+            <div class="bg-rose-50/80 border border-rose-100 rounded-xl py-1.5 px-1">
+              <span class="text-[10px] text-rose-500 font-medium block">產生業績</span>
+              <span class="text-xs font-black text-rose-700">${m.bv} <span class="text-[10px] font-normal">BV</span></span>
+            </div>
+            <div class="bg-amber-50/80 border border-amber-100 rounded-xl py-1.5 px-1">
+              <span class="text-[10px] text-amber-600 font-medium block">會面行動</span>
+              <span class="text-xs font-black text-amber-800">${m.totalMeetings} <span class="text-[10px] font-normal">場</span></span>
+            </div>
+            <div class="bg-emerald-50/80 border border-emerald-100 rounded-xl py-1.5 px-1">
+              <span class="text-[10px] text-emerald-600 font-medium block">開拓名單</span>
+              <span class="text-xs font-black text-emerald-800">${m.newListCount} <span class="text-[10px] font-normal">位</span></span>
+            </div>
+          </div>
+
+          <!-- 手風琴展開按鈕 -->
+          <button type="button" class="btn-toggle-detail w-full pt-1 text-[11px] text-slate-400 hover:text-blue-600 font-semibold flex items-center justify-center gap-1 transition">
+            <span>詳細指標明細</span>
+            <span class="arrow-icon transition-transform">▾</span>
+          </button>
+
+          <!-- 5 大項詳細指標展開區 (預設收合) -->
+          <div class="detail-content hidden pt-2.5 border-t border-slate-100 space-y-2 text-xs text-slate-600">
+            <!-- 01 按表操課 -->
+            <div class="bg-slate-50 p-2 rounded-xl">
+              <span class="font-bold text-blue-600">01 按表操課：</span>
+              <span>FB 貼文限動 ${m.fbPostDays} 天 ｜ 陌生互動 ${m.strangerChat} 則</span>
+            </div>
+
+            <!-- 02 拓展人脈 -->
+            <div class="bg-slate-50 p-2 rounded-xl">
+              <span class="font-bold text-emerald-600">02 拓展人脈：</span>
+              <span>新增名單 ${m.newListCount} 位</span>
+              ${m.newListNames ? `<div class="text-[11px] text-slate-400 mt-0.5 truncate">名單人選：${m.newListNames}</div>` : ''}
+            </div>
+
+            <!-- 03 關係經營 -->
+            <div class="bg-slate-50 p-2 rounded-xl">
+              <span class="font-bold text-purple-600">03 關係經營：</span>
+              <span>培養信任 ${m.trustBuilding} 次 ｜ 跟進 ${m.followUp} 次</span>
+              ${m.followUpNames ? `<div class="text-[11px] text-slate-400 mt-0.5 truncate">重點對象：${m.followUpNames}</div>` : ''}
+            </div>
+
+            <!-- 04 會面行動 -->
+            <div class="bg-slate-50 p-2 rounded-xl">
+              <span class="font-bold text-amber-600">04 會面行動：</span>
+              <span>排定 ${m.meetings.scheduled} ｜ 一訪 ${m.meetings.first} ｜ 美安 ${m.meetings.ma} ｜ SHOW ${m.meetings.show}</span>
+              ${m.meetings.notes ? `<div class="text-[11px] text-slate-400 mt-0.5 truncate">排約細節：${m.meetings.notes}</div>` : ''}
+            </div>
+
+            <!-- 05 美安業績 -->
+            <div class="bg-slate-50 p-2 rounded-xl">
+              <span class="font-bold text-rose-600">05 美安業績：</span>
+              <span>送試用包 ${m.samples} ｜ 賣票 ${m.tickets} ｜ 新顧客 ${m.newCustomer} ｜ 回購 ${m.repeatCustomer}</span>
+            </div>
+          </div>
+        `;
+
+        // 綁定手風琴展開/收合事件
+        const toggleBtn = card.querySelector('.btn-toggle-detail');
+        const detailDiv = card.querySelector('.detail-content');
+        const arrowIcon = card.querySelector('.arrow-icon');
+        toggleBtn.addEventListener('click', () => {
+          const isHidden = detailDiv.classList.contains('hidden');
+          if (isHidden) {
+            detailDiv.classList.remove('hidden');
+            arrowIcon.style.transform = 'rotate(180deg)';
+            toggleBtn.querySelector('span:first-child').textContent = '收起指標明細';
+          } else {
+            detailDiv.classList.add('hidden');
+            arrowIcon.style.transform = 'rotate(0deg)';
+            toggleBtn.querySelector('span:first-child').textContent = '詳細指標明細';
+          }
+        });
+
+        container.appendChild(card);
+      });
+    }
+
+    function handleSubmit() {
+      if (!state.userName) {
+        showCustomAlert('請先綁定身分', '首次打卡前請先選擇您的名字', 'ℹ️', 'info');
+        return;
+      }
+
+      const checkinDate = document.getElementById('checkinDate').value;
+      const bvInput = parseInt(document.getElementById('input_bv').value, 10) || 0;
+      const retailProfitInput = parseInt(document.getElementById('input_retailProfit').value, 10) || 0;
+      const newListNames = document.getElementById('input_newListNames').value.trim();
+      const trustBuildingNames = document.getElementById('input_trustBuildingNames') ? document.getElementById('input_trustBuildingNames').value.trim() : '';
+      const followUpNames = document.getElementById('input_followUpNames') ? document.getElementById('input_followUpNames').value.trim() : '';
+      const meetingNotes = document.getElementById('input_meetingNotes') ? document.getElementById('input_meetingNotes').value.trim() : '';
+
+      // 會面總數：若手動有按 meetingTotal 則取之，否則自動將一訪+美安面相加
+      const calcMeetingTotal = state.counters.meetingTotal > 0 
+        ? state.counters.meetingTotal 
+        : (state.counters.meetingFirst + state.counters.meetingMa);
+
+      const payload = {
+        lineUid: state.lineUid,
+        name: state.userName,
+        group: state.group,
+        date: checkinDate,
+        fbPost: false,
+        strangerChat: 0,
+        newListCount: state.counters.newListCount,
+        newListNames: newListNames,
+        trustBuilding: state.counters.trustBuilding,
+        trustBuildingNames: trustBuildingNames,
+        followUp: state.counters.followUp,
+        followUpNames: followUpNames,
+        meetingScheduled: state.counters.meetingScheduled,
+        meetingFirst: state.counters.meetingFirst,
+        meetingMa: state.counters.meetingMa,
+        meetingShow: state.counters.meetingShow,
+        meetingTotal: calcMeetingTotal,
+        meetingNotes: meetingNotes,
+        samples: 0,
+        bv: bvInput,
+        tickets: state.counters.tickets,
+        newCustomer: state.counters.newCustomer,
+        repeatCustomer: state.counters.repeatCustomer,
+        cashProfit: retailProfitInput,
+        sponsor: 0
+      };
+
+      showLoading(true);
+      BackendAPI.submitDaily(payload)
+        .then((result) => {
+          showLoading(false);
+          if (result && result.success) {
+            if (result.weekStats) {
+              renderWeekStats(result.weekStats);
+            }
+            if (result.flexMessage) {
+              showCheckinSuccessModal(result.flexMessage, result.message, payload);
+            } else {
+              showCustomAlert(
+                result.message || '今日打卡成功！',
+                '資料已成功儲存至試算表！🎉',
+                '✓',
+                'success',
+                () => {
+                  if (typeof liff !== 'undefined' && liff.isInClient && liff.isInClient()) {
+                    liff.closeWindow();
+                  }
+                },
+                1800
+              );
+            }
+          } else {
+            showCustomAlert('打卡送出失敗', (result ? result.message : '') || '請稍後重試', '⚠️', 'error');
+          }
+        })
+        .catch(() => {
+          showLoading(false);
+          showCustomAlert('連線失敗', '網路連線異常，請稍後重試', '⚠️', 'error');
+        });
+    }
+
+    function handleWeeklySummary() {
+      const modal = document.getElementById('summaryModal');
+      const content = document.getElementById('summaryContent');
+      modal.classList.remove('hidden');
+      content.textContent = 'Gemini AI 正在為您彙整本週日常紀錄，請稍候約 3 秒...';
+
+      BackendAPI.getPersonalSummary(state.lineUid)
+        .then((data) => {
+          if (data && data.success && data.summary) {
+            content.textContent = data.summary;
+          } else {
+            content.textContent = (data ? data.message : '') || '暫無本週紀錄或尚未生成';
+          }
+        })
+        .catch(() => {
+          content.textContent = '取得總結失敗，請稍後重試';
+        });
+    }
+
+    let loadingTimer = null;
+    function showLoading(show) {
+      const overlay = document.getElementById('loadingOverlay');
+      if (loadingTimer) clearTimeout(loadingTimer);
+      if (show) {
+        overlay.classList.remove('hidden');
+        // 15 秒防呆超時，避免網路稍慢時提前消失
+        loadingTimer = setTimeout(() => {
+          overlay.classList.add('hidden');
+        }, 15000);
+      } else {
+        overlay.classList.add('hidden');
+      }
+    }
+  </script>
+</body>
+</html>
