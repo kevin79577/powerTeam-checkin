@@ -518,6 +518,9 @@
         <button type="button" id="btnCustomModalShare" onclick="handleShareCardClick(event)" class="hidden w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:from-emerald-800 active:to-teal-800 text-white text-sm font-bold rounded-2xl shadow-md transition flex items-center justify-center gap-1.5">
           <span>📤</span> <span>分享戰績卡片至群組</span>
         </button>
+        <button type="button" id="btnCustomModalFallback" onclick="executeLineNativeShare(this)" class="hidden w-full py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-2xl border border-emerald-200 transition flex items-center justify-center gap-1">
+          <span>📲</span> <span>備援發送 (開啟 LINE 群組並貼上)</span>
+        </button>
         <button type="button" id="btnCustomModalClose" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-sm font-bold rounded-2xl shadow transition">
           確定
         </button>
@@ -897,9 +900,11 @@
       const titleEl = document.getElementById('customModalTitle');
       const subEl = document.getElementById('customModalSub');
       const shareBtn = document.getElementById('btnCustomModalShare');
+      const fallbackBtn = document.getElementById('btnCustomModalFallback');
       const closeBtn = document.getElementById('btnCustomModalClose');
 
       if (shareBtn) shareBtn.classList.add('hidden');
+      if (fallbackBtn) fallbackBtn.classList.add('hidden');
 
       if (titleEl) titleEl.textContent = title;
       if (subEl) {
@@ -1006,12 +1011,17 @@
         iconBox.className = 'w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-3xl font-bold shadow-inner';
       }
 
-      // 啟用主動作分享按鈕（直接替換整個按鈕內容，絕不受子元素遺失影響）
+      // 啟用主動作分享按鈕與備援分享按鈕
       if (shareBtn) {
         shareBtn.classList.remove('hidden');
         shareBtn.disabled = false;
         shareBtn.className = 'w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 active:from-emerald-800 active:to-teal-800 text-white text-sm font-bold rounded-2xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer';
         shareBtn.innerHTML = '<span>📤</span> <span>分享戰績卡片至群組</span>';
+      }
+
+      const fallbackBtn = document.getElementById('btnCustomModalFallback');
+      if (fallbackBtn) {
+        fallbackBtn.classList.remove('hidden');
       }
 
       // 關閉按鈕改為次要按鈕
@@ -1090,7 +1100,20 @@
           try { msgToSend = JSON.parse(msgToSend); } catch(e) {}
         }
 
-        // 4. 優先嘗試官方 shareTargetPicker（直接彈出群組選擇並代發 Flex 戰績卡片）
+        // 4. 檢查 chat_message.write 權限，若在後台新開啟但使用者尚未同意，呼叫 requestAll() 跳出同意授權彈窗
+        if (typeof liff !== 'undefined' && liff.permission && typeof liff.permission.query === 'function') {
+          try {
+            var perm = await liff.permission.query('chat_message.write');
+            if (perm && perm.state !== 'granted' && typeof liff.permission.requestAll === 'function') {
+              shareBtn.innerHTML = '<span>🔐</span> <span>請在彈窗點選「同意」...</span>';
+              await liff.permission.requestAll();
+            }
+          } catch (permErr) {
+            console.warn('[Permission check warn]', permErr);
+          }
+        }
+
+        // 5. 優先嘗試官方 shareTargetPicker（直接彈出群組選擇並代發 Flex 戰績卡片）
         if (typeof liff !== 'undefined' && typeof liff.shareTargetPicker === 'function' && msgToSend) {
           shareBtn.innerHTML = '<span>📲</span> <span>開啟群組選擇中...</span>';
           try {
@@ -1101,15 +1124,23 @@
               setTimeout(function() { closeCustomModal(); }, 1500);
               return;
             } else {
-              // 使用者在 LINE 群組清單中按了取消或返回
+              // 使用者在 LINE 群組清單中按了取消，或新開啟的權限尚未完全套用
               shareBtn.disabled = false;
               shareBtn.innerHTML = '<span>📤</span> <span>分享戰績卡片至群組</span>';
+              
+              showCustomAlert(
+                '未完成群組發送',
+                '若畫面剛才未彈出群組清單，原因為：\n新啟用的【chat_message.write】權限需重啟頁面以更新授權！\n\n💡 建議：\n1. 請關閉打卡視窗，重新點開 LIFF 連結\n2. 或點擊「確定」立即使用備援發送！',
+                'ℹ️',
+                'info',
+                function() { executeLineNativeShare(shareBtn); }
+              );
               return;
             }
           } catch (err) {
             console.error('[shareTargetPicker Error]', err);
             var errMsg = (err && (err.message || err.code)) ? (err.message || err.code) : String(err);
-            var hint = '請至 LINE Developers Console 確認：\n1. 【Share Target Picker】是否已切換為 ON\n2. 權限是否有勾選 chat_message.write\n\n點擊「確定」將改以備援方式為您複製戰報並開啟 LINE 群組！';
+            var hint = '請確認：\n1. LINE Developers 的 Endpoint URL 是否為 https://kevin79577.github.io/powerTeam-checkin/\n2. 請關閉視窗後重新點開 LIFF 連結\n\n點擊「確定」將為您複製戰報並開啟 LINE 群組！';
             
             showCustomAlert(
               '群組分享尚未開啟',
@@ -1122,7 +1153,7 @@
           }
         }
 
-        // 5. 若無法執行 shareTargetPicker，詳細診斷原因並提供備援
+        // 6. 若無法執行 shareTargetPicker，詳細診斷原因並提供備援
         var failReason = '';
         if (!isLiffReady) {
           failReason = 'LIFF 未能成功連線 (' + (window._liffInitError || '初始化逾時') + ')\n💡 請確認 LINE Developers Console 的 Endpoint URL 是否填為：\nhttps://kevin79577.github.io/powerTeam-checkin/';
