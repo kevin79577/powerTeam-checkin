@@ -192,34 +192,50 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-2">
+      <div class="space-y-2.5">
         <!-- • 一訪 -->
-        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 space-y-1.5">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-semibold text-slate-700">• 一訪</span>
-            <div class="flex items-center bg-blue-100 border border-blue-200 rounded px-1.5 py-0.5 text-[10px]">
-              <span class="font-black text-blue-900">週<span id="week_meetingFirst">0</span></span>
+            <div>
+              <span class="text-xs font-semibold text-slate-700">• 一訪</span>
+              <span class="text-[10px] text-slate-400 ml-1">(週目標 2 次)</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="flex items-center bg-white rounded-lg p-0.5 border border-slate-200">
+                <button type="button" class="btn-step w-6 h-6 bg-slate-50 rounded text-xs font-bold" data-target="meetingFirst" data-delta="-1">-</button>
+                <span id="txt_meetingFirst" class="w-6 text-center font-bold text-xs text-slate-800">0</span>
+                <button type="button" class="btn-step w-6 h-6 bg-blue-600 text-white rounded text-xs font-bold" data-target="meetingFirst" data-delta="1">+</button>
+              </div>
+              <div class="flex items-center bg-blue-100 border border-blue-200 rounded px-1.5 py-0.5 text-[10px]">
+                <span class="font-black text-blue-900">週<span id="week_meetingFirst">0</span></span>
+              </div>
             </div>
           </div>
-          <div class="flex items-center justify-between mt-2 bg-white rounded-lg p-0.5 border border-slate-200">
-            <button type="button" class="btn-step w-6 h-6 bg-slate-50 rounded text-xs font-bold" data-target="meetingFirst" data-delta="-1">-</button>
-            <span id="txt_meetingFirst" class="font-bold text-xs text-slate-800">0</span>
-            <button type="button" class="btn-step w-6 h-6 bg-blue-600 text-white rounded text-xs font-bold" data-target="meetingFirst" data-delta="1">+</button>
+          <div>
+            <input type="text" id="input_meetingFirstNames" placeholder="輸入一訪對象姓名，例如：小明、陳經理" class="w-full text-xs p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
           </div>
         </div>
 
         <!-- • 美安面 -->
-        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60">
+        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200/60 space-y-1.5">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-semibold text-slate-700">• 美安面</span>
-            <div class="flex items-center bg-blue-100 border border-blue-200 rounded px-1.5 py-0.5 text-[10px]">
-              <span class="font-black text-blue-900">週<span id="week_meetingMa">0</span></span>
+            <div>
+              <span class="text-xs font-semibold text-slate-700">• 美安面</span>
+              <span class="text-[10px] text-slate-400 ml-1">(週目標 2 次)</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="flex items-center bg-white rounded-lg p-0.5 border border-slate-200">
+                <button type="button" class="btn-step w-6 h-6 bg-slate-50 rounded text-xs font-bold" data-target="meetingMa" data-delta="-1">-</button>
+                <span id="txt_meetingMa" class="w-6 text-center font-bold text-xs text-slate-800">0</span>
+                <button type="button" class="btn-step w-6 h-6 bg-blue-600 text-white rounded text-xs font-bold" data-target="meetingMa" data-delta="1">+</button>
+              </div>
+              <div class="flex items-center bg-blue-100 border border-blue-200 rounded px-1.5 py-0.5 text-[10px]">
+                <span class="font-black text-blue-900">週<span id="week_meetingMa">0</span></span>
+              </div>
             </div>
           </div>
-          <div class="flex items-center justify-between mt-2 bg-white rounded-lg p-0.5 border border-slate-200">
-            <button type="button" class="btn-step w-6 h-6 bg-slate-50 rounded text-xs font-bold" data-target="meetingMa" data-delta="-1">-</button>
-            <span id="txt_meetingMa" class="font-bold text-xs text-slate-800">0</span>
-            <button type="button" class="btn-step w-6 h-6 bg-blue-600 text-white rounded text-xs font-bold" data-target="meetingMa" data-delta="1">+</button>
+          <div>
+            <input type="text" id="input_meetingMaNames" placeholder="輸入美安面姓名，例如：Perry評估、美玲合夥談單" class="w-full text-xs p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
           </div>
         </div>
       </div>
@@ -1019,6 +1035,8 @@
       lines.push('⭐ 排約：' + (p.meetingScheduled || 0) + ' 次');
       lines.push('【會面行動】');
       lines.push('• 一訪：' + (p.meetingFirst || 0) + ' 次 ｜ 美安面：' + (p.meetingMa || 0) + ' 次');
+      if (p.meetingFirstNames) lines.push('   一訪名單：' + p.meetingFirstNames);
+      if (p.meetingMaNames) lines.push('   美安面名單：' + p.meetingMaNames);
       lines.push('⭐ 會面總數：' + meetTotal + ' 次 (週 ' + (w.meetingTotal != null ? w.meetingTotal : meetTotal) + ' 次)');
       if (p.meetingNotes) lines.push('   備註：' + p.meetingNotes);
       lines.push('【美安業績】');
@@ -1053,7 +1071,7 @@
       const isLate = !!(payload && payload.isLate);
       if (titleEl) titleEl.textContent = isLate ? '⏳ 補打卡成功！' : '🎉 今日打卡成功！';
       if (subEl) {
-        subEl.textContent = '戰績卡片已由機器人自動推播至大群組！💪\n資料已同步更新至試算表。';
+        subEl.textContent = '打卡資料已同步更新至試算表！💪';
         subEl.style.display = 'block';
       }
       if (iconEl) iconEl.textContent = '✓';
@@ -1793,6 +1811,8 @@
       const trustBuildingNames = document.getElementById('input_trustBuildingNames') ? document.getElementById('input_trustBuildingNames').value.trim() : '';
       const followUpNames = document.getElementById('input_followUpNames') ? document.getElementById('input_followUpNames').value.trim() : '';
       const meetingNotes = document.getElementById('input_meetingNotes') ? document.getElementById('input_meetingNotes').value.trim() : '';
+      const meetingFirstNames = document.getElementById('input_meetingFirstNames') ? document.getElementById('input_meetingFirstNames').value.trim() : '';
+      const meetingMaNames = document.getElementById('input_meetingMaNames') ? document.getElementById('input_meetingMaNames').value.trim() : '';
 
       // 會面總數：若手動有按 meetingTotal 則取之，否則自動將一訪+美安面相加
       const calcMeetingTotal = state.counters.meetingTotal > 0 
@@ -1814,7 +1834,9 @@
         followUpNames: followUpNames,
         meetingScheduled: state.counters.meetingScheduled,
         meetingFirst: state.counters.meetingFirst,
+        meetingFirstNames: meetingFirstNames,
         meetingMa: state.counters.meetingMa,
+        meetingMaNames: meetingMaNames,
         meetingShow: state.counters.meetingShow,
         meetingTotal: calcMeetingTotal,
         meetingNotes: meetingNotes,
