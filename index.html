@@ -861,6 +861,48 @@
       if (elBv) elBv.textContent = Number(stats.bv || 0).toLocaleString() + ' BV';
     }
 
+    /**
+     * 🔄 自動回填當日打卡內容 (包含一訪名單、美安面名單、各計數器)
+     */
+    function applyTodayLog(log) {
+      if (!log) return;
+      const countKeys = [
+        'newListCount', 'trustBuilding', 'followUp', 'meetingScheduled',
+        'meetingFirst', 'meetingMa', 'meetingShow', 'meetingTotal',
+        'newCustomer', 'repeatCustomer', 'tickets', 'sponsor'
+      ];
+      countKeys.forEach(k => {
+        if (log[k] != null) {
+          state.counters[k] = Number(log[k]) || 0;
+          const displayEl = document.getElementById(`txt_${k}`);
+          if (displayEl) displayEl.textContent = state.counters[k];
+        }
+      });
+
+      const elProfit = document.getElementById('input_retailProfit');
+      if (elProfit && log.cashProfit != null) elProfit.value = log.cashProfit;
+      const elBv = document.getElementById('input_bv');
+      if (elBv && log.bv != null) elBv.value = log.bv;
+
+      const elNewListNames = document.getElementById('input_newListNames');
+      if (elNewListNames && log.newListNames) elNewListNames.value = log.newListNames;
+      const elTrustNames = document.getElementById('input_trustBuildingNames');
+      if (elTrustNames && log.trustBuildingNames) elTrustNames.value = log.trustBuildingNames;
+      const elFollowNames = document.getElementById('input_followUpNames');
+      if (elFollowNames && log.followUpNames) elFollowNames.value = log.followUpNames;
+      const elNotes = document.getElementById('input_meetingNotes');
+      if (elNotes && log.meetingNotes) elNotes.value = log.meetingNotes;
+      const elFirstNames = document.getElementById('input_meetingFirstNames');
+      if (elFirstNames && log.meetingFirstNames) elFirstNames.value = log.meetingFirstNames;
+      const elMaNames = document.getElementById('input_meetingMaNames');
+      if (elMaNames && log.meetingMaNames) elMaNames.value = log.meetingMaNames;
+
+      const btnSubmitText = document.getElementById('btnSubmitText');
+      if (btnSubmitText) {
+        btnSubmitText.textContent = '更新今日打卡 (已儲存)';
+      }
+    }
+
     async function loadMemberStatus() {
       try {
         console.log('[名冊同步] 開始向後端抓取資料, UID:', state.lineUid);
@@ -894,6 +936,9 @@
           if (data.weekStats) {
             renderWeekStats(data.weekStats);
           }
+          if (data.todayLog) {
+            applyTodayLog(data.todayLog);
+          }
         } else {
           // 如果後端還沒綁定
           const localName = localStorage.getItem('POWER_TEAM_USER_NAME');
@@ -908,6 +953,7 @@
                   state.isBound = true;
                   updateUserBanner();
                   if (res.weekStats) renderWeekStats(res.weekStats);
+                  if (res.todayLog) applyTodayLog(res.todayLog);
                 } else {
                   showBindModal(data.memberList || []);
                 }
@@ -1793,7 +1839,10 @@
               <span class="text-indigo-700 font-bold flex items-center gap-1"><span>👑</span> 招募人數</span>
               <span class="font-black text-indigo-900 text-sm">${m.sponsor || 0} 位</span>
             </div>
-            ${m.newListNames ? `<div class="text-xs text-slate-500 px-1 truncate">名單人選：${m.newListNames}</div>` : ''}
+            ${m.newListNames ? `<div class="text-xs text-slate-500 px-1 truncate">📝 新增名單：${m.newListNames}</div>` : ''}
+            ${m.meetingFirstNames ? `<div class="text-xs text-blue-600 px-1 truncate">🤝 一訪名單：${m.meetingFirstNames}</div>` : ''}
+            ${m.meetingMaNames ? `<div class="text-xs text-indigo-600 px-1 truncate">⭐ 美安面名單：${m.meetingMaNames}</div>` : ''}
+            ${(m.meetings && m.meetings.notes) ? `<div class="text-xs text-slate-400 px-1 truncate">📌 會面備註：${m.meetings.notes}</div>` : ''}
           </div>
         `;
 
@@ -1877,6 +1926,7 @@
             if (result.weekStats) {
               renderWeekStats(result.weekStats);
             }
+            applyTodayLog(payload);
             if (result.flexMessage) {
               showCheckinSuccessModal(result.flexMessage, result.message, payload);
             } else {
