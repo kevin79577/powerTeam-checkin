@@ -212,6 +212,7 @@
             </div>
           </div>
           <div>
+            <label for="input_meetingFirstNames" class="block text-[11px] font-bold text-slate-600 mb-1">一訪名單：</label>
             <input type="text" id="input_meetingFirstNames" placeholder="輸入一訪對象姓名，例如：小明、陳經理" class="w-full text-xs p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
           </div>
         </div>
@@ -235,6 +236,7 @@
             </div>
           </div>
           <div>
+            <label for="input_meetingMaNames" class="block text-[11px] font-bold text-slate-600 mb-1">美安會面名單：</label>
             <input type="text" id="input_meetingMaNames" placeholder="輸入美安面姓名，例如：Perry評估、美玲合夥談單" class="w-full text-xs p-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
           </div>
         </div>
@@ -1095,11 +1097,13 @@
       if (p.newListNames) lines.push('   名單：' + p.newListNames);
       lines.push('【關係經營】');
       lines.push('• 潛在人選：' + (p.trustBuilding || 0) + ' 位 ｜ 顧客：' + (p.followUp || 0) + ' 位');
+      if (p.trustBuildingNames) lines.push('   潛在名單：' + p.trustBuildingNames);
+      if (p.followUpNames) lines.push('   跟進名單：' + p.followUpNames);
       lines.push('⭐ 排約：' + (p.meetingScheduled || 0) + ' 次');
       lines.push('【會面行動】');
       lines.push('• 一訪：' + (p.meetingFirst || 0) + ' 次 ｜ 美安面：' + (p.meetingMa || 0) + ' 次');
       if (p.meetingFirstNames) lines.push('   一訪名單：' + p.meetingFirstNames);
-      if (p.meetingMaNames) lines.push('   美安面名單：' + p.meetingMaNames);
+      if (p.meetingMaNames) lines.push('   美安會面名單：' + p.meetingMaNames);
       lines.push('⭐ 會面總數：' + meetTotal + ' 次 (週 ' + (w.meetingTotal != null ? w.meetingTotal : meetTotal) + ' 次)');
       if (p.meetingNotes) lines.push('   備註：' + p.meetingNotes);
       lines.push('【美安業績】');
@@ -1882,6 +1886,33 @@
       const meetingNotes = document.getElementById('input_meetingNotes') ? document.getElementById('input_meetingNotes').value.trim() : '';
       const meetingFirstNames = document.getElementById('input_meetingFirstNames') ? document.getElementById('input_meetingFirstNames').value.trim() : '';
       const meetingMaNames = document.getElementById('input_meetingMaNames') ? document.getElementById('input_meetingMaNames').value.trim() : '';
+
+      // 防呆：若有輸入名單但忘記按「+」，自動補足次數至少為 1
+      if (meetingFirstNames && state.counters.meetingFirst === 0) {
+        state.counters.meetingFirst = 1;
+        const el = document.getElementById('txt_meetingFirst');
+        if (el) el.textContent = '1';
+      }
+      if (meetingMaNames && state.counters.meetingMa === 0) {
+        state.counters.meetingMa = 1;
+        const el = document.getElementById('txt_meetingMa');
+        if (el) el.textContent = '1';
+      }
+      if (trustBuildingNames && state.counters.trustBuilding === 0) {
+        state.counters.trustBuilding = 1;
+        const el = document.getElementById('txt_trustBuilding');
+        if (el) el.textContent = '1';
+      }
+      if (followUpNames && state.counters.followUp === 0) {
+        state.counters.followUp = 1;
+        const el = document.getElementById('txt_followUp');
+        if (el) el.textContent = '1';
+      }
+      if (newListNames && state.counters.newListCount === 0) {
+        state.counters.newListCount = 1;
+        const el = document.getElementById('txt_newListCount');
+        if (el) el.textContent = '1';
+      }
 
       // 會面總數：若手動有按 meetingTotal 則取之，否則自動將一訪+美安面相加
       const calcMeetingTotal = state.counters.meetingTotal > 0 
