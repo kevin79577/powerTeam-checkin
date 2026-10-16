@@ -793,44 +793,47 @@
     }
 
     async function initLiff() {
-      // 1. 先從本地讀取已儲存的身分
-      const cachedName = localStorage.getItem('POWER_TEAM_USER_NAME');
-      const cachedGroup = localStorage.getItem('POWER_TEAM_USER_GROUP');
-      const cachedRole = localStorage.getItem('POWER_TEAM_USER_ROLE');
-      let cachedUid = localStorage.getItem('POWER_TEAM_DEVICE_UID');
-
-      if (!cachedUid) {
-        cachedUid = 'USER_' + Math.random().toString(36).substring(2, 12);
-        localStorage.setItem('POWER_TEAM_DEVICE_UID', cachedUid);
-      }
-      state.lineUid = cachedUid;
-
-      if (cachedName && state.lineUid) {
-        state.userName = cachedName;
-        state.group = cachedGroup ? parseInt(cachedGroup, 10) : 1;
-        state.role = cachedRole || '組員';
-        state.isBound = true;
-        updateUserBanner();
-      }
-
-      // 2. 立即向後端試算表非同步載入名冊與身分
-      loadMemberStatus();
-
-      // 3. 嘗試從 LIFF 取得真實 LINE Profile UID（若成功取得則無縫替換）
-      if (typeof liff !== 'undefined') {
-        getLiffReady().then(async (ready) => {
-          if (ready && liff.isLoggedIn && liff.isLoggedIn()) {
+      showLoading(true);
+      try {
+        // 1. 等待 LIFF SDK 初始化並取得真實 LINE Profile
+        if (typeof liff !== 'undefined') {
+          const ready = await getLiffReady();
+          if (ready) {
+            if (liff.isLoggedIn && !liff.isLoggedIn()) {
+              liff.login();
+              return;
+            }
             const profile = await liff.getProfile();
             if (profile && profile.userId) {
               state.lineUid = profile.userId;
               localStorage.setItem('POWER_TEAM_DEVICE_UID', profile.userId);
-              loadMemberStatus();
             }
           }
-        }).catch((err) => {
-          console.warn('[LIFF 提示]', err.message);
-        });
+        }
+      } catch (err) {
+        console.warn('[LIFF 載入提示]', err.message);
       }
+
+      // 2. 備用讀取：若短暫離線，僅接受本地存過的真實 LINE UID (U 開頭)
+      if (!state.lineUid) {
+        const cachedUid = localStorage.getItem('POWER_TEAM_DEVICE_UID');
+        if (cachedUid && cachedUid.startsWith('U')) {
+          state.lineUid = cachedUid;
+        }
+      }
+
+      // 3. 若仍無有效 LINE UID，提示請於 LINE 中開啟
+      if (!state.lineUid) {
+        showLoading(false);
+        const statusEl = document.getElementById('userStatusText');
+        if (statusEl) {
+          statusEl.innerHTML = '<span class="text-rose-200">請於 LINE 中開啟以識別身分</span>';
+        }
+        return;
+      }
+
+      // 4. 具備真實 LINE UID 後，向後端試算表查詢綁定紀錄
+      loadMemberStatus();
     }
 
     function renderWeekStats(stats) {
@@ -942,34 +945,13 @@
             applyTodayLog(data.todayLog);
           }
         } else {
-          // 如果後端還沒綁定
-          const localName = localStorage.getItem('POWER_TEAM_USER_NAME');
-          if (localName && state.lineUid) {
-            // 本地有名字，嘗試自動補綁定
-            BackendAPI.bindMember(localName, state.lineUid)
-              .then((res) => {
-                if (res && res.success) {
-                  state.userName = res.name;
-                  state.group = res.group;
-                  state.role = res.role;
-                  state.isBound = true;
-                  updateUserBanner();
-                  if (res.weekStats) renderWeekStats(res.weekStats);
-                  if (res.todayLog) applyTodayLog(res.todayLog);
-                } else {
-                  showBindModal(data.memberList || []);
-                }
-              })
-              .catch(() => showBindModal(data.memberList || []));
-          } else {
-            // 未綁定：更新橫幅並主動彈出綁定選單
-            const statusEl = document.getElementById('userStatusText');
-            if (statusEl) {
-              statusEl.innerHTML = '<span class="text-amber-200">尚未綁定身分</span> ｜ <span id="btnPromptBind" class="underline cursor-pointer">點此綁定</span>';
-              document.getElementById('btnPromptBind')?.addEventListener('click', () => showBindModal(data.memberList || []));
-            }
-            showBindModal(data.memberList || []);
+          // ⭐ 未綁定：不再進行任何背景自動補綁定，直接彈出名單選單讓夥伴選取
+          const statusEl = document.getElementById('userStatusText');
+          if (statusEl) {
+            statusEl.innerHTML = '<span class="text-amber-200">尚未綁定身分</span> ｜ <span id="btnPromptBind" class="underline cursor-pointer">點此綁定</span>';
+            document.getElementById('btnPromptBind')?.addEventListener('click', () => showBindModal(data.memberList || []));
           }
+          showBindModal(data.memberList || []);
         }
       } else {
         const statusEl = document.getElementById('userStatusText');
@@ -1227,10 +1209,10 @@
           return;
         }
 
-        // 確保具有有效 UID
-        if (!state.lineUid) {
-          state.lineUid = 'USER_' + Math.random().toString(36).substring(2, 12);
-          localStorage.setItem('POWER_TEAM_DEVICE_UID', state.lineUid);
+        // ⭐ 確保具有真實 LINE UID (U 開頭)
+        if (!state.lineUid || !state.lineUid.startsWith('U')) {
+          showCustomAlert('無法取得 LINE 身分', '請於 LINE 應用程式中點擊連結開啟本頁面進行綁定', '⚠️', 'error');
+          return;
         }
 
         showLoading(true);
