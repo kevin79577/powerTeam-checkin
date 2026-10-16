@@ -981,24 +981,7 @@
 
     function updateUserBanner() {
       const statusEl = document.getElementById('userStatusText');
-      statusEl.innerHTML = `${state.userName} (${state.role}) ｜ 第 ${state.group} 小組 <span id="btnSwitchUser" class="underline text-blue-200 ml-1 cursor-pointer text-[10px]">(切換)</span>`;
-      
-      const switchBtn = document.getElementById('btnSwitchUser');
-      if (switchBtn) {
-        switchBtn.addEventListener('click', async () => {
-          if (confirm(`目前身分為「${state.userName}」，是否要切換綁定其他夥伴？`)) {
-            localStorage.removeItem('POWER_TEAM_USER_NAME');
-            showLoading(true);
-            try {
-              const data = await BackendAPI.getInitialData(state.lineUid);
-              showLoading(false);
-              showBindModal(data.memberList || []);
-            } catch (e) {
-              showLoading(false);
-            }
-          }
-        });
-      }
+      statusEl.innerHTML = `${state.userName} (${state.role}) ｜ 第 ${state.group} 小組`;
     }
 
     function showBindModal(memberList) {
@@ -1006,12 +989,19 @@
       const select = document.getElementById('selectMember');
       select.innerHTML = '<option value="">-- 請點選您的名字 --</option>';
 
-      memberList.forEach(m => {
-        const opt = document.createElement('option');
-        opt.value = m.name;
-        opt.textContent = `${m.name}（第 ${m.group} 組 - ${m.role}）`;
-        select.appendChild(opt);
-      });
+      // ⭐ 僅列出尚未被其他人綁定對應的夥伴名單
+      const availableMembers = (memberList || []).filter(m => !m.isBound);
+
+      if (availableMembers.length === 0) {
+        select.innerHTML = '<option value="">-- 夥伴名冊已全數完成綁定 --</option>';
+      } else {
+        availableMembers.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m.name;
+          opt.textContent = `${m.name}（第 ${m.group} 組 - ${m.role}）`;
+          select.appendChild(opt);
+        });
+      }
 
       modal.classList.remove('hidden');
     }
