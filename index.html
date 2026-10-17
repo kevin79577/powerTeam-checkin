@@ -66,6 +66,16 @@
       </div>
     </section>
 
+    <!-- 打卡紀錄載入中提示 (選擇日期或初次載入時隱藏表格，避免尚未載入就誤填) -->
+    <div id="checkinFormLoading" class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200/80 text-center space-y-3">
+      <div class="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+      <div id="checkinFormLoadingText" class="text-sm font-bold text-slate-700">正在載入打卡紀錄，請稍候...</div>
+      <div class="text-xs text-slate-400">載入完成後將自動顯示打卡表格</div>
+    </div>
+
+    <!-- 打卡表單主容器 (載入完成後才顯示) -->
+    <div id="checkinFormContainer" class="hidden space-y-4">
+
     <!-- 區塊 1: 【拓展人脈】 -->
     <section class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 space-y-3">
       <div class="flex items-center gap-2 border-b border-slate-100 pb-2">
@@ -373,6 +383,8 @@
       </div>
     </section>
 
+    </div><!-- /#checkinFormContainer -->
+
   </main>
 
   <!-- 團隊戰報 視圖容器 -->
@@ -596,30 +608,53 @@
      * 🌐 後端雙模適配器：支援 GAS 內部執行 (google.script.run) 與獨立模式 (fetch REST API)
      */
     const BackendAPI = {
-      async getInitialData(lineUid) {
+      async getInitialData(lineUid, dateStr) {
         if (typeof google !== 'undefined' && google.script && google.script.run) {
           return new Promise((resolve, reject) => {
             google.script.run
               .withSuccessHandler(resolve)
               .withFailureHandler(reject)
-              .apiGetInitialData(lineUid);
+              .apiGetInitialData(lineUid, dateStr || '');
           });
         }
         const apiUrl = window.GAS_API_URL || localStorage.getItem('POWER_TEAM_GAS_URL');
         if (apiUrl) {
-          const res = await fetch(apiUrl + '?action=getInitialData&lineUid=' + encodeURIComponent(lineUid));
+          let url = apiUrl + '?action=getInitialData&lineUid=' + encodeURIComponent(lineUid || '');
+          if (dateStr) url += '&date=' + encodeURIComponent(dateStr);
+          const res = await fetch(url);
           return await res.json();
         }
         throw new Error('未設定 GAS_API_URL');
       },
 
-      async bindMember(name, lineUid) {
+      async getDateLog(lineUid, name, dateStr) {
         if (typeof google !== 'undefined' && google.script && google.script.run) {
           return new Promise((resolve, reject) => {
             google.script.run
               .withSuccessHandler(resolve)
               .withFailureHandler(reject)
-              .apiBindMember(name, lineUid);
+              .apiGetDateLog(lineUid || '', name || '', dateStr || '');
+          });
+        }
+        const apiUrl = window.GAS_API_URL || localStorage.getItem('POWER_TEAM_GAS_URL');
+        if (apiUrl) {
+          const url = apiUrl
+            + '?action=getDateLog&lineUid=' + encodeURIComponent(lineUid || '')
+            + '&name=' + encodeURIComponent(name || '')
+            + '&date=' + encodeURIComponent(dateStr || '');
+          const res = await fetch(url);
+          return await res.json();
+        }
+        throw new Error('未設定 GAS_API_URL');
+      },
+
+      async bindMember(name, lineUid, dateStr) {
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          return new Promise((resolve, reject) => {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .apiBindMember(name, lineUid, dateStr || '');
           });
         }
         const apiUrl = window.GAS_API_URL || localStorage.getItem('POWER_TEAM_GAS_URL');
@@ -628,7 +663,7 @@
             method: 'POST',
             redirect: 'follow',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'bind', name: name, lineUid: lineUid })
+            body: JSON.stringify({ action: 'bind', name: name, lineUid: lineUid, date: dateStr || '' })
           });
           return await res.json();
         }
@@ -699,6 +734,7 @@
       role: '組員',
       isBound: false,
       fbPost: false,
+      hasCurrentDateLog: false,
       counters: {
         strangerChat: 3,
         newListCount: 0,
@@ -716,6 +752,39 @@
         sponsor: 0
       }
     };
+
+    let dateLoadRequestId = 0;
+
+    /**
+     * 🛡️ 控制打卡表單與載入提示的顯示狀態（載入期間隱藏表格，避免使用者提前填寫被覆蓋）
+     */
+    function setCheckinFormLoading(isLoading, dateStr) {
+      const loadingBox = document.getElementById('checkinFormLoading');
+      const loadingText = document.getElementById('checkinFormLoadingText');
+      const formContainer = document.getElementById('checkinFormContainer');
+      const btnSubmit = document.getElementById('btnSubmit');
+
+      if (isLoading) {
+        if (loadingText) {
+          loadingText.textContent = dateStr
+            ? `正在載入 ${dateStr} 的打卡紀錄，請稍候...`
+            : '正在載入打卡紀錄，請稍候...';
+        }
+        if (loadingBox) loadingBox.classList.remove('hidden');
+        if (formContainer) formContainer.classList.add('hidden');
+        if (btnSubmit) {
+          btnSubmit.disabled = true;
+          btnSubmit.classList.add('opacity-50', 'pointer-events-none');
+        }
+      } else {
+        if (loadingBox) loadingBox.classList.add('hidden');
+        if (formContainer) formContainer.classList.remove('hidden');
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.classList.remove('opacity-50', 'pointer-events-none');
+        }
+      }
+    }
 
     document.addEventListener('DOMContentLoaded', () => {
       initDatePicker();
@@ -737,7 +806,46 @@
       dateInput.max = todayStr;
 
       checkLateStatus();
-      dateInput.addEventListener('change', checkLateStatus);
+      dateInput.addEventListener('change', handleDateChange);
+    }
+
+    function handleDateChange() {
+      const dateInput = document.getElementById('checkinDate');
+      const selectedDate = dateInput ? dateInput.value : '';
+      checkLateStatus();
+      if (selectedDate) {
+        loadDateLog(selectedDate);
+      }
+    }
+
+    async function loadDateLog(dateStr) {
+      const reqId = ++dateLoadRequestId;
+      // 切換日期時立即隱藏表格、顯示載入中，避免使用者在載入前誤填資料
+      setCheckinFormLoading(true, dateStr);
+
+      if (!state.lineUid && !state.userName) {
+        applyTodayLog(null);
+        setCheckinFormLoading(false);
+        return;
+      }
+
+      try {
+        const res = await BackendAPI.getDateLog(state.lineUid, state.userName, dateStr);
+        if (reqId !== dateLoadRequestId) return; // 已有更新的日期請求，忽略舊回應
+        if (res && res.success) {
+          applyTodayLog(res.log || null);
+        } else {
+          applyTodayLog(null);
+        }
+      } catch (err) {
+        if (reqId !== dateLoadRequestId) return;
+        console.warn('[切換日期讀取紀錄異常]', err);
+        applyTodayLog(null);
+      } finally {
+        if (reqId === dateLoadRequestId) {
+          setCheckinFormLoading(false);
+        }
+      }
     }
 
     function checkLateStatus() {
@@ -756,10 +864,14 @@
 
       if (isPast || isLateTonight) {
         lateBadge.classList.remove('hidden');
-        btnSubmitText.textContent = '送出補打卡 (標註補打卡)';
+        btnSubmitText.textContent = state.hasCurrentDateLog
+          ? '更新補打卡 (已儲存)'
+          : '送出補打卡 (標註補打卡)';
       } else {
         lateBadge.classList.add('hidden');
-        btnSubmitText.textContent = '儲存今日打卡';
+        btnSubmitText.textContent = state.hasCurrentDateLog
+          ? '更新今日打卡 (已儲存)'
+          : '儲存今日打卡';
       }
     }
 
@@ -793,6 +905,8 @@
     }
 
     async function initLiff() {
+      const dateInput = document.getElementById('checkinDate');
+      setCheckinFormLoading(true, dateInput ? dateInput.value : '');
       showLoading(true);
       try {
         // 1. 等待 LIFF SDK 初始化並取得真實 LINE Profile
@@ -825,6 +939,8 @@
       // 3. 若仍無有效 LINE UID，提示請於 LINE 中開啟
       if (!state.lineUid) {
         showLoading(false);
+        applyTodayLog(null);
+        setCheckinFormLoading(false);
         const statusEl = document.getElementById('userStatusText');
         if (statusEl) {
           statusEl.innerHTML = '<span class="text-rose-200">請於 LINE 中開啟以識別身分</span>';
@@ -867,10 +983,51 @@
     }
 
     /**
-     * 🔄 自動回填當日打卡內容 (包含一訪名單、美安面名單、各計數器)
+     * 🧹 將打卡表單所有計數器與輸入框清空歸零（當該日尚未打卡時維持空白）
+     */
+    function resetCheckinForm() {
+      const countKeys = [
+        'newListCount', 'trustBuilding', 'followUp', 'meetingScheduled',
+        'meetingFirst', 'meetingMa', 'meetingShow', 'meetingTotal',
+        'newCustomer', 'repeatCustomer', 'tickets', 'sponsor'
+      ];
+      countKeys.forEach(k => {
+        state.counters[k] = 0;
+        const displayEl = document.getElementById(`txt_${k}`);
+        if (displayEl) displayEl.textContent = '0';
+      });
+
+      const elProfit = document.getElementById('input_retailProfit');
+      if (elProfit) elProfit.value = 0;
+      const elBv = document.getElementById('input_bv');
+      if (elBv) elBv.value = 0;
+
+      const textInputIds = [
+        'input_newListNames',
+        'input_trustBuildingNames',
+        'input_followUpNames',
+        'input_meetingNotes',
+        'input_meetingFirstNames',
+        'input_meetingMaNames'
+      ];
+      textInputIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+
+      state.hasCurrentDateLog = false;
+      checkLateStatus();
+    }
+
+    /**
+     * 🔄 自動回填指定日期的打卡內容 (若 log 為 null 則清空表單為空白)
      */
     function applyTodayLog(log) {
+      // 先一律清空表單，確保切換日期時不會殘留前一個日期的資料
+      resetCheckinForm();
       if (!log) return;
+
+      state.hasCurrentDateLog = true;
       const countKeys = [
         'newListCount', 'trustBuilding', 'followUp', 'meetingScheduled',
         'meetingFirst', 'meetingMa', 'meetingShow', 'meetingTotal',
@@ -890,32 +1047,33 @@
       if (elBv && log.bv != null) elBv.value = log.bv;
 
       const elNewListNames = document.getElementById('input_newListNames');
-      if (elNewListNames && log.newListNames) elNewListNames.value = log.newListNames;
+      if (elNewListNames) elNewListNames.value = log.newListNames || '';
       const elTrustNames = document.getElementById('input_trustBuildingNames');
-      if (elTrustNames && log.trustBuildingNames) elTrustNames.value = log.trustBuildingNames;
+      if (elTrustNames) elTrustNames.value = log.trustBuildingNames || '';
       const elFollowNames = document.getElementById('input_followUpNames');
-      if (elFollowNames && log.followUpNames) elFollowNames.value = log.followUpNames;
+      if (elFollowNames) elFollowNames.value = log.followUpNames || '';
       const elNotes = document.getElementById('input_meetingNotes');
-      if (elNotes && log.meetingNotes) elNotes.value = log.meetingNotes;
+      if (elNotes) elNotes.value = log.meetingNotes || '';
       const elFirstNames = document.getElementById('input_meetingFirstNames');
-      if (elFirstNames && log.meetingFirstNames) elFirstNames.value = log.meetingFirstNames;
+      if (elFirstNames) elFirstNames.value = log.meetingFirstNames || '';
       const elMaNames = document.getElementById('input_meetingMaNames');
-      if (elMaNames && log.meetingMaNames) elMaNames.value = log.meetingMaNames;
+      if (elMaNames) elMaNames.value = log.meetingMaNames || '';
 
-      const btnSubmitText = document.getElementById('btnSubmitText');
-      if (btnSubmitText) {
-        btnSubmitText.textContent = '更新今日打卡 (已儲存)';
-      }
+      checkLateStatus();
     }
 
     async function loadMemberStatus() {
       try {
+        const dateInput = document.getElementById('checkinDate');
+        const currentSelectedDate = dateInput ? dateInput.value : '';
         console.log('[名冊同步] 開始向後端抓取資料, UID:', state.lineUid);
-        const data = await BackendAPI.getInitialData(state.lineUid);
+        const data = await BackendAPI.getInitialData(state.lineUid, currentSelectedDate);
         onInitialDataLoaded(data);
       } catch (err) {
         console.warn('背景名冊同步異常:', err);
         showLoading(false);
+        applyTodayLog(null);
+        setCheckinFormLoading(false);
         const statusEl = document.getElementById('userStatusText');
         if (statusEl && !state.isBound) {
           statusEl.innerHTML = '<span class="text-amber-200">未綁定身分</span> ｜ <span id="btnPromptBind" class="underline cursor-pointer">點此綁定</span>';
@@ -941,10 +1099,11 @@
           if (data.weekStats) {
             renderWeekStats(data.weekStats);
           }
-          if (data.todayLog) {
-            applyTodayLog(data.todayLog);
-          }
+          applyTodayLog(data.todayLog || null);
+          setCheckinFormLoading(false);
         } else {
+          applyTodayLog(null);
+          setCheckinFormLoading(false);
           // ⭐ 未綁定：不再進行任何背景自動補綁定，直接彈出名單選單讓夥伴選取
           const statusEl = document.getElementById('userStatusText');
           if (statusEl) {
@@ -954,6 +1113,8 @@
           showBindModal(data.memberList || []);
         }
       } else {
+        applyTodayLog(null);
+        setCheckinFormLoading(false);
         const statusEl = document.getElementById('userStatusText');
         if (statusEl) {
           statusEl.innerHTML = '<span class="text-rose-200">名冊讀取失敗</span>';
@@ -1215,9 +1376,12 @@
           return;
         }
 
+        const dateInput = document.getElementById('checkinDate');
+        const currentSelectedDate = dateInput ? dateInput.value : '';
+        setCheckinFormLoading(true, currentSelectedDate);
         showLoading(true);
         try {
-          const res = await BackendAPI.bindMember(selectedName, state.lineUid);
+          const res = await BackendAPI.bindMember(selectedName, state.lineUid, currentSelectedDate);
           showLoading(false);
           if (res && res.success) {
             state.userName = res.name;
@@ -1231,13 +1395,17 @@
             if (res.weekStats) {
               renderWeekStats(res.weekStats);
             }
+            applyTodayLog(res.todayLog || null);
+            setCheckinFormLoading(false);
             document.getElementById('bindModal').classList.add('hidden');
             showCustomAlert('綁定成功！', `歡迎 ${state.userName} 夥伴加入 Power Team`, '✓', 'success');
           } else {
+            setCheckinFormLoading(false);
             showCustomAlert('綁定失敗', (res ? res.message : '') || '請確認姓名後重試', '⚠️', 'error');
           }
         } catch (err) {
           showLoading(false);
+          setCheckinFormLoading(false);
           showCustomAlert('連線失敗', '網路連線異常，請重試', '⚠️', 'error');
         }
       });
