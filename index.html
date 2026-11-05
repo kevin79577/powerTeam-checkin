@@ -76,6 +76,36 @@
     <!-- 打卡表單主容器 (載入完成後才顯示) -->
     <div id="checkinFormContainer" class="hidden space-y-4">
 
+    <!-- 區塊 0: 【每日基本功】勾選題 -->
+    <section class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 space-y-2.5">
+      <div class="flex items-center gap-2 border-b border-slate-100 pb-2">
+        <span class="text-blue-600 font-bold">✅</span>
+        <h2 class="text-sm font-bold text-slate-800">【每日基本功】</h2>
+      </div>
+
+      <!-- 1. 今日已讀過目標聲明 -->
+      <label for="chk_readGoal" class="flex items-center justify-between p-2.5 rounded-xl bg-blue-50/40 border border-blue-200/60 cursor-pointer hover:bg-blue-50/80 transition select-none">
+        <div class="flex items-center gap-2.5">
+          <input type="checkbox" id="chk_readGoal" class="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+          <span class="text-sm font-bold text-slate-800">今日已讀過目標聲明</span>
+        </div>
+        <div class="flex items-center bg-blue-100 border border-blue-300 rounded-lg px-2 py-0.5 shadow-2xs shrink-0">
+          <span class="text-xs font-black text-blue-950">週<span id="week_readGoal">0</span></span>
+        </div>
+      </label>
+
+      <!-- 2. 今日已聽至少15分鐘錄音檔 -->
+      <label for="chk_listenAudio" class="flex items-center justify-between p-2.5 rounded-xl bg-blue-50/40 border border-blue-200/60 cursor-pointer hover:bg-blue-50/80 transition select-none">
+        <div class="flex items-center gap-2.5">
+          <input type="checkbox" id="chk_listenAudio" class="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+          <span class="text-sm font-bold text-slate-800">今日已聽至少15分鐘錄音檔</span>
+        </div>
+        <div class="flex items-center bg-blue-100 border border-blue-300 rounded-lg px-2 py-0.5 shadow-2xs shrink-0">
+          <span class="text-xs font-black text-blue-950">週<span id="week_listenAudio">0</span></span>
+        </div>
+      </label>
+    </section>
+
     <!-- 區塊 1: 【拓展人脈】 -->
     <section class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 space-y-3">
       <div class="flex items-center gap-2 border-b border-slate-100 pb-2">
@@ -956,6 +986,8 @@
       if (!stats) return;
       state.weekStats = stats;
       const map = {
+        readGoal: 'week_readGoal',
+        listenAudio: 'week_listenAudio',
         newListCount: 'week_newListCount',
         trustBuilding: 'week_trustBuilding',
         followUp: 'week_followUp',
@@ -996,6 +1028,11 @@
         const displayEl = document.getElementById(`txt_${k}`);
         if (displayEl) displayEl.textContent = '0';
       });
+
+      const chkReadGoal = document.getElementById('chk_readGoal');
+      if (chkReadGoal) chkReadGoal.checked = false;
+      const chkListenAudio = document.getElementById('chk_listenAudio');
+      if (chkListenAudio) chkListenAudio.checked = false;
 
       const elProfit = document.getElementById('input_retailProfit');
       if (elProfit) elProfit.value = 0;
@@ -1040,6 +1077,11 @@
           if (displayEl) displayEl.textContent = state.counters[k];
         }
       });
+
+      const chkReadGoal = document.getElementById('chk_readGoal');
+      if (chkReadGoal) chkReadGoal.checked = !!Number(log.readGoal);
+      const chkListenAudio = document.getElementById('chk_listenAudio');
+      if (chkListenAudio) chkListenAudio.checked = !!Number(log.listenAudio);
 
       const elProfit = document.getElementById('input_retailProfit');
       if (elProfit && log.cashProfit != null) elProfit.value = log.cashProfit;
@@ -1224,6 +1266,9 @@
         badge + ' ' + nameVal + ' 打卡戰報',
         '📅 日期：' + dateVal + ' ｜ 第 ' + groupVal + ' 小組',
         '━━━━━━━━━━━━━━━',
+        '【每日基本功】',
+        '• 今日已讀過目標聲明：' + (p.readGoal ? '✔ 已讀' : '✘ 未讀'),
+        '• 今日已聽至少15分鐘錄音檔：' + (p.listenAudio ? '✔ 已聽' : '✘ 未聽'),
         '【拓展人脈】',
         '⭐ 新增名單：' + (p.newListCount || 0) + ' 位 (週 ' + (w.newListCount != null ? w.newListCount : (p.newListCount || 0)) + ' 位)'
       ];
@@ -2018,6 +2063,8 @@
       }
 
       const checkinDate = document.getElementById('checkinDate').value;
+      const readGoal = document.getElementById('chk_readGoal')?.checked ? 1 : 0;
+      const listenAudio = document.getElementById('chk_listenAudio')?.checked ? 1 : 0;
       const bvInput = parseInt(document.getElementById('input_bv').value, 10) || 0;
       const retailProfitInput = parseInt(document.getElementById('input_retailProfit').value, 10) || 0;
       const newListNames = document.getElementById('input_newListNames').value.trim();
@@ -2064,6 +2111,8 @@
         name: state.userName,
         group: state.group,
         date: checkinDate,
+        readGoal: readGoal,
+        listenAudio: listenAudio,
         fbPost: false,
         strangerChat: 0,
         newListCount: state.counters.newListCount,
